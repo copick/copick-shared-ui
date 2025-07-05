@@ -1,0 +1,132 @@
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[project]
+name = "copick-shared-ui"
+requires-python = ">=3.9"
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: Implementation :: PyPy",
+    "Topic :: Scientific/Engineering :: Image Processing",
+]
+dynamic = ["version"]
+dependencies = [
+    "qtpy",
+    "pydantic>=2",
+    "copick@git+https://github.com/copick/copick.git@de80ec0",
+]
+authors = [
+    {name = "Utz H. Ermel", email = "utz@ermel.me"},
+    { name = "Kyle Harrington", email = "czi@kyleharrington.com" },
+]
+description = "Shared UI components for copick visualization plugins"
+readme = "README.md"
+license = { file = "LICENSE" }
+keywords = ["copick", "cryoet", "cryo-et", "tomography", "annotation", "ui", "qt"]
+
+[project.urls]
+Repository = "https://github.com/copick/copick-shared-ui"
+Issues = "https://github.com/copick/copick-shared-ui/issues"
+Documentation = "https://github.com/copick/copick-shared-ui#README.md"
+"Bug Tracker" = "https://github.com/copick/copick-shared-ui/issues"
+"Source Code" = "https://github.com/copick/copick-shared-ui"
+"User Support" = "https://github.com/copick/copick-shared-ui/issues"
+
+[project.optional-dependencies]
+dev = [
+    "black>=25.1.0",
+    "hatchling>=1.25.0",
+    "hatch-vcs>=0.4.0",
+    "pre-commit>=4.2.0",
+    "ruff>=0.12.0",
+]
+testing = [
+    "tox",
+    "tox-gh-actions", 
+    "tox-uv",
+    "pytest",
+    "pytest-cov",
+    "pytest-qt",
+    "pyqt6",
+]
+
+[tool.hatch.version]
+path = "src/copick_shared_ui/__init__.py"
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.black]
+line-length = 120
+target-version = ['py311']
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = [
+    "E", "W",  # pycodestyle
+    "F",       # pyflakes
+    "B",       # bugbear
+    "I",       # isort
+    "N",       # pep8-naming
+    "ASYNC",   # async
+    "COM",     # commas
+    "C4",      # comprehensions
+    "DTZ",     # datetimez
+    "ISC",     # implicit-str-concat
+    "G",       # logging-format
+    "T20",     # print
+    "SIM",     # simplify
+]
+ignore = [
+    "G004",   # logging format
+    "W293",   # blank line contains whitespace
+    "B008",   # Do not perform calls in argument defaults
+    "B905",   # `zip()` without an explicit `strict=` parameter
+    "N802",   # Function name should be lowercase
+    "N805",   # First argument of a method should be named `self`
+    "N806",   # Variable in function should be lowercase
+    "N999",   # Invalid module name
+    "E501",   # line too long
+    "C408",   # rewrite empty built-ins as literals
+    "T201",   # print statements.
+    "DTZ007", # Datetime objects without timezones.
+    "DTZ005", # More datetimes without timezones.
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["copick_shared_ui"]
+
+[tool.ruff.lint.flake8-quotes]
+docstring-quotes = "double"
+
+[tool.coverage.run]
+source_pkgs = ["copick_shared_ui", "tests"]
+branch = true
+parallel = true
+
+[tool.coverage.paths]
+copick_shared_ui = ["src/copick_shared_ui", "*/copick-shared-ui/src/copick_shared_ui"]
+tests = ["tests", "*/copick-shared-ui/tests"]
+
+[tool.coverage.report]
+exclude_lines = [
+  "no cov",
+  "if __name__ == .__main__.:",
+  "if TYPE_CHECKING:",
+]
