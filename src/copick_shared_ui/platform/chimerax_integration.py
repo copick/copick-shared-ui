@@ -39,10 +39,6 @@ class ChimeraXSessionInterface(AbstractSessionInterface):
         """Get the current copick root object."""
         return getattr(self.session, 'copick_root', None)
         
-    def set_copick_root(self, copick_root: Any) -> None:
-        """Set the copick root object."""
-        self.session.copick_root = copick_root
-        
     def switch_to_3d_view(self) -> None:
         """Switch to 3D/volume view."""
         try:
