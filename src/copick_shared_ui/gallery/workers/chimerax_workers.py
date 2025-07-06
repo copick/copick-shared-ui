@@ -40,7 +40,7 @@ class CompatibleMeta(type(AbstractThumbnailWorker), type(QRunnable)):
     pass
 
 
-class ChimeraXThumbnailWorker(QRunnable, AbstractThumbnailWorker, metaclass=CompatibleMeta):
+class ChimeraXThumbnailWorker(AbstractThumbnailWorker, QRunnable, metaclass=CompatibleMeta):
     """ChimeraX-specific thumbnail worker using QRunnable."""
     
     def __init__(
@@ -50,8 +50,13 @@ class ChimeraXThumbnailWorker(QRunnable, AbstractThumbnailWorker, metaclass=Comp
         thumbnail_id: str,
         force_regenerate: bool = False
     ):
+        # Initialize AbstractThumbnailWorker first with a callback that uses signals
+        def callback(tid: str, pixmap: Optional[Any], error: Optional[str]) -> None:
+            """Callback that emits signal."""
+            self.signals.thumbnail_loaded.emit(tid, pixmap, error)
+            
+        AbstractThumbnailWorker.__init__(self, run, thumbnail_id, callback, force_regenerate)
         QRunnable.__init__(self)
-        AbstractThumbnailWorker.__init__(self, run, thumbnail_id, None, force_regenerate)
         self.signals = signals
         self._cancelled = False
         
