@@ -67,6 +67,7 @@ class ThumbnailCache:
         self.cache_dir: Optional[Path] = None
         self._image_interface: Optional[ImageInterface] = None
         self._setup_cache_directory()
+        self._cleanup_old_cache_entries()
 
     def set_image_interface(self, image_interface: ImageInterface) -> None:
         """Set the image interface for handling image operations.
@@ -97,6 +98,7 @@ class ThumbnailCache:
 
         # Create the cache directory if it doesn't exist
         self.cache_dir.mkdir(parents=True, exist_ok=True)
+        print(f"📁 Thumbnail cache directory: {self.cache_dir}")
 
         # Create metadata file if it doesn't exist
         self._ensure_metadata_file()
@@ -203,7 +205,12 @@ class ThumbnailCache:
 
         try:
             thumbnail_path = self.get_thumbnail_path(cache_key)
-            return self._image_interface.save_image(image, str(thumbnail_path), "PNG")
+            success = self._image_interface.save_image(image, str(thumbnail_path), "PNG")
+            if success:
+                print(f"💾 Saved thumbnail to: {thumbnail_path}")
+            else:
+                print(f"❌ Failed to save thumbnail to: {thumbnail_path}")
+            return success
         except Exception as e:
             print(f"Error saving thumbnail to cache: {e}")
             return False
@@ -224,12 +231,55 @@ class ThumbnailCache:
         try:
             thumbnail_path = self.get_thumbnail_path(cache_key)
             if thumbnail_path.exists():
+                print(f"📦 Loading cached thumbnail from: {thumbnail_path}")
                 image = self._image_interface.load_image(str(thumbnail_path))
                 return image if image and self._image_interface.is_valid_image(image) else None
+            else:
+                print(f"🔍 No cached thumbnail found at: {thumbnail_path}")
             return None
         except Exception as e:
             print(f"Error loading thumbnail from cache: {e}")
             return None
+
+    def _cleanup_old_cache_entries(self, max_age_days: int = 14) -> None:
+        """Remove cache entries older than the specified number of days.
+
+        Args:
+            max_age_days: Maximum age in days for cache entries (default: 14 days)
+        """
+        if not self.cache_dir or not self.cache_dir.exists():
+            return
+
+        try:
+            import time
+
+            current_time = time.time()
+            max_age_seconds = max_age_days * 24 * 60 * 60  # Convert days to seconds
+
+            removed_count = 0
+            for thumbnail_file in self.cache_dir.glob("*.png"):
+                try:
+                    # Get file modification time
+                    file_mtime = thumbnail_file.stat().st_mtime
+                    age_seconds = current_time - file_mtime
+
+                    if age_seconds > max_age_seconds:
+                        thumbnail_file.unlink()
+                        removed_count += 1
+                        print(
+                            f"🗑️ Removed old cache entry: {thumbnail_file.name} (age: {age_seconds / (24 * 60 * 60):.1f} days)",
+                        )
+
+                except Exception as e:
+                    print(f"Warning: Could not process cache file {thumbnail_file}: {e}")
+
+            if removed_count > 0:
+                print(f"🧹 Cache cleanup: Removed {removed_count} old entries (older than {max_age_days} days)")
+            else:
+                print(f"✅ Cache cleanup: No entries older than {max_age_days} days found")
+
+        except Exception as e:
+            print(f"Warning: Cache cleanup failed: {e}")
 
     def clear_cache(self) -> bool:
         """Clear all thumbnails from the cache.
@@ -240,8 +290,11 @@ class ThumbnailCache:
         try:
             if self.cache_dir and self.cache_dir.exists():
                 # Remove all PNG files (thumbnails) but keep metadata
+                removed_count = 0
                 for thumbnail_file in self.cache_dir.glob("*.png"):
                     thumbnail_file.unlink()
+                    removed_count += 1
+                print(f"🧹 Manually cleared {removed_count} thumbnails from cache")
                 return True
             return False
         except Exception as e:
@@ -282,6 +335,7 @@ class ThumbnailCache:
         if config_path != self.config_path:
             self.config_path = config_path
             self._setup_cache_directory()
+            self._cleanup_old_cache_entries()
 
 
 class GlobalCacheManager:
@@ -338,3 +392,14 @@ def set_global_cache_config(config_path: str, app_name: str = "copick") -> None:
         app_name: Name of the application
     """
     _global_cache_manager.set_cache_config(config_path, app_name)
+
+
+def set_global_cache_image_interface(image_interface: ImageInterface, app_name: str = "copick") -> None:
+    """Set the image interface for the global cache.
+
+    Args:
+        image_interface: Platform-specific image interface
+        app_name: Name of the application
+    """
+    cache = _global_cache_manager.get_cache(app_name)
+    cache.set_image_interface(image_interface)

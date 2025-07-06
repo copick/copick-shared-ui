@@ -17,6 +17,7 @@ except ImportError as e:
 
 if NAPARI_AVAILABLE:
     from .base import AbstractThumbnailWorker
+    from .base_manager import AbstractWorkerManager
     from .data_worker import AbstractDataWorker
 
 if TYPE_CHECKING:
@@ -44,6 +45,7 @@ if NAPARI_AVAILABLE:
             super().__init__(item, thumbnail_id, callback, force_regenerate)
             self._worker_func = None
             self._cancelled = False
+            self._finished = False
 
         def start(self) -> None:
             """Start the thumbnail loading work using napari's thread_worker."""
@@ -54,25 +56,89 @@ if NAPARI_AVAILABLE:
                 self.callback(self.thumbnail_id, None, "napari not available")
                 return
 
-            # Create the worker function
+            # Create the worker function as a generator for better control
             @thread_worker
             def load_thumbnail():
-                print(f"🔧 NapariWorker: Inside thread_worker for '{self.thumbnail_id}'")
+                print(f"🔧 NapariWorker: Inside generator thread_worker for '{self.thumbnail_id}'")
 
+                # Check cancellation before starting
                 if self._cancelled:
-                    print(f"⚠️ NapariWorker: Cancelled '{self.thumbnail_id}'")
+                    print(f"⚠️ NapariWorker: Cancelled '{self.thumbnail_id}' before starting")
                     return None, "Cancelled"
 
                 try:
-                    # Use unified thumbnail generation with caching
-                    pixmap, error = self.generate_thumbnail_pixmap()
+                    # Yield to allow interruption
+                    yield "Starting thumbnail generation..."
 
-                    if error:
-                        print(f"❌ NapariWorker: Error generating thumbnail for '{self.thumbnail_id}': {error}")
-                        return None, error
+                    # Check cancellation again
+                    if self._cancelled:
+                        print(f"⚠️ NapariWorker: Cancelled '{self.thumbnail_id}' during execution")
+                        return None, "Cancelled"
+
+                    # Break up the thumbnail generation to allow cancellation
+                    # Step 1: Check cache
+                    yield "Checking cache..."
+                    if self._cancelled:
+                        return None, "Cancelled"
+
+                    # Check if we can use cached result
+                    if self._cache and self._cache_key and not self.force_regenerate:
+                        cached_pixmap = self._cache.load_thumbnail(self._cache_key)
+                        if cached_pixmap is not None:
+                            print(f"📦 Using cached thumbnail for '{self.thumbnail_id}'")
+                            return cached_pixmap, None
+
+                    # Step 2: Determine tomogram to use
+                    yield "Selecting tomogram..."
+                    if self._cancelled:
+                        return None, "Cancelled"
+
+                    if self._is_tomogram():
+                        tomogram = self.item
                     else:
-                        print(f"✅ NapariWorker: Successfully created thumbnail for '{self.thumbnail_id}'")
-                        return pixmap, None
+                        # Item is a run, select best tomogram
+                        run = self.item
+                        tomogram = self._select_best_tomogram(run)
+                        if not tomogram:
+                            return None, "No suitable tomogram found in run"
+
+                    # Step 3: Generate thumbnail with periodic yielding
+                    yield "Loading tomogram data..."
+                    if self._cancelled:
+                        return None, "Cancelled"
+
+                    # Generate thumbnail array with cancellation checks
+                    thumbnail_array = self._generate_thumbnail_array_with_cancellation(tomogram)
+                    if thumbnail_array is None:
+                        return None, "Failed to generate thumbnail array"
+
+                    if self._cancelled:
+                        return None, "Cancelled"
+
+                    # Step 4: Convert to pixmap
+                    yield "Converting to pixmap..."
+                    if self._cancelled:
+                        return None, "Cancelled"
+
+                    pixmap = self._array_to_pixmap(thumbnail_array)
+                    if pixmap is None:
+                        return None, "Failed to convert array to pixmap"
+
+                    # Step 5: Cache result
+                    yield "Caching result..."
+                    if self._cancelled:
+                        return None, "Cancelled"
+
+                    if self._cache and self._cache_key:
+                        try:
+                            success = self._cache.save_thumbnail(self._cache_key, pixmap)
+                            if success:
+                                print(f"💾 Cached thumbnail for '{self.thumbnail_id}'")
+                        except Exception as e:
+                            print(f"⚠️ Error caching thumbnail: {e}")
+
+                    print(f"✅ NapariWorker: Successfully created thumbnail for '{self.thumbnail_id}'")
+                    return pixmap, None
 
                 except Exception as e:
                     print(f"💥 NapariWorker: Exception in worker for '{self.thumbnail_id}': {e}")
@@ -99,12 +165,16 @@ if NAPARI_AVAILABLE:
             """Cancel the thumbnail loading work."""
             self._cancelled = True
             if self._worker_func:
-                # napari workers don't have a direct cancel method
-                # We rely on the _cancelled flag check
-                pass
+                # Use napari's quit method to abort the worker
+                if hasattr(self._worker_func, "quit"):
+                    print(f"🛑 NapariWorker: Calling quit() on worker for '{self.thumbnail_id}'")
+                    self._worker_func.quit()
+                else:
+                    print(f"⚠️ NapariWorker: Worker for '{self.thumbnail_id}' has no quit method")
 
         def _on_worker_finished(self, result):
             """Handle worker completion."""
+            self._finished = True
             if self._cancelled:
                 return
 
@@ -127,6 +197,97 @@ if NAPARI_AVAILABLE:
                     self._cache.set_image_interface(QtImageInterface())
                 except Exception as e:
                     print(f"Warning: Could not set up napari image interface: {e}")
+
+        def _generate_thumbnail_array_with_cancellation(self, tomogram: "CopickTomogram") -> Optional[Any]:
+            """Generate thumbnail array from tomogram data with cancellation checks."""
+            try:
+                import numpy as np
+                import zarr
+
+                print(f"🔧 Loading zarr data for tomogram: {tomogram.tomo_type}")
+
+                # Check cancellation before heavy I/O
+                if self._cancelled:
+                    return None
+
+                # Load tomogram data - handle multi-scale zarr properly
+                zarr_group = zarr.open(tomogram.zarr(), mode="r")
+
+                # Check cancellation after opening zarr
+                if self._cancelled:
+                    return None
+
+                # Get the data array - handle multi-scale structure
+                if hasattr(zarr_group, "keys") and callable(zarr_group.keys):
+                    # Multi-scale zarr group - get the HIGHEST binning level for faster thumbnails
+                    scale_levels = sorted([k for k in zarr_group.keys() if k.isdigit()], key=int)  # noqa: SIM118
+                    if scale_levels:
+                        # Use the highest scale level (most binned/smallest) for thumbnails
+                        highest_scale = scale_levels[-1]  # Last element is highest number = most binned
+                        tomo_data = zarr_group[highest_scale]
+                        print(
+                            f"🔧 Using highest binning scale level {highest_scale} from multi-scale zarr for thumbnail",
+                        )
+                    else:
+                        # Fallback to first key
+                        first_key = list(zarr_group.keys())[0]
+                        tomo_data = zarr_group[first_key]
+                        print(f"🔧 Using first key '{first_key}' from zarr group")
+                else:
+                    # Direct zarr array
+                    tomo_data = zarr_group
+                    print("🔧 Using direct zarr array")
+
+                # Check cancellation after getting data reference
+                if self._cancelled:
+                    return None
+
+                print(f"📐 Tomogram shape: {tomo_data.shape}")
+
+                # Calculate downsampling factor based on data size
+                target_size = 200
+                z_size, y_size, x_size = tomo_data.shape
+
+                # Use middle slice for 2D thumbnail
+                mid_z = z_size // 2
+
+                # Check cancellation before reading slice data
+                if self._cancelled:
+                    return None
+
+                # Read the middle slice data
+                mid_slice = tomo_data[mid_z]
+
+                # Check cancellation after reading slice
+                if self._cancelled:
+                    return None
+
+                # Calculate downsampling for the slice
+                downsample_y = max(1, y_size // target_size)
+                downsample_x = max(1, x_size // target_size)
+
+                # Downsample the slice
+                thumbnail = mid_slice[::downsample_y, ::downsample_x]
+
+                # Check cancellation after downsampling
+                if self._cancelled:
+                    return None
+
+                # Normalize to 0-255 range
+                thumb_min, thumb_max = thumbnail.min(), thumbnail.max()
+                if thumb_max > thumb_min:
+                    thumbnail = ((thumbnail - thumb_min) / (thumb_max - thumb_min) * 255).astype(np.uint8)
+                else:
+                    thumbnail = np.zeros_like(thumbnail, dtype=np.uint8)
+
+                print(f"📐 Generated thumbnail shape: {thumbnail.shape}")
+                return thumbnail
+
+            except Exception as e:
+                if self._cancelled:
+                    return None
+                print(f"Error generating thumbnail array: {e}")
+                return None
 
         def _array_to_pixmap(self, array: Any) -> Optional[QPixmap]:
             """Convert numpy array to QPixmap."""
@@ -188,6 +349,7 @@ if NAPARI_AVAILABLE:
         ):
             super().__init__(run, data_type, callback)
             self._worker_func = None
+            self._finished = False
 
         def start(self) -> None:
             """Start the data loading work using napari's thread_worker."""
@@ -203,16 +365,24 @@ if NAPARI_AVAILABLE:
             worker_data_type = self.data_type
             worker_cancelled = lambda: self._cancelled  # noqa: E731
 
-            # Create the worker function
+            # Create the worker function as a generator for better control
             @thread_worker
             def load_data():
-                print(f"🔧 NapariDataWorker: Inside thread_worker for '{worker_data_type}'")
+                print(f"🔧 NapariDataWorker: Inside generator thread_worker for '{worker_data_type}'")
 
                 if worker_cancelled():
-                    print(f"⚠️ NapariDataWorker: Cancelled '{worker_data_type}'")
+                    print(f"⚠️ NapariDataWorker: Cancelled '{worker_data_type}' before starting")
                     return None, "Cancelled"
 
                 try:
+                    # Yield to allow interruption
+                    yield f"Starting {worker_data_type} loading..."
+
+                    # Check cancellation again
+                    if worker_cancelled():
+                        print(f"⚠️ NapariDataWorker: Cancelled '{worker_data_type}' during execution")
+                        return None, "Cancelled"
+
                     # Use base class data loading logic directly
                     print(f"🔍 Loading {worker_data_type} for run '{worker_run.name}'")
 
@@ -265,12 +435,16 @@ if NAPARI_AVAILABLE:
             """Cancel the data loading work."""
             self._cancelled = True
             if self._worker_func:
-                # napari workers don't have a direct cancel method
-                # We rely on the _cancelled flag check
-                pass
+                # Use napari's quit method to abort the worker
+                if hasattr(self._worker_func, "quit"):
+                    print(f"🛑 NapariDataWorker: Calling quit() on worker for '{self.data_type}'")
+                    self._worker_func.quit()
+                else:
+                    print(f"⚠️ NapariDataWorker: Worker for '{self.data_type}' has no quit method")
 
         def _on_worker_finished(self, result):
             """Handle worker completion."""
+            self._finished = True
             if self._cancelled:
                 return
 
@@ -279,48 +453,56 @@ if NAPARI_AVAILABLE:
 
         def _on_worker_error(self, error):
             """Handle worker error."""
+            self._finished = True
             if self._cancelled:
                 return
 
             self.callback(self.data_type, None, str(error))
 
-    class NapariWorkerManager:
-        """Manages napari thumbnail and data workers."""
+    class NapariWorkerManager(AbstractWorkerManager):
+        """Manages napari thumbnail and data workers with thread limiting."""
 
-        def __init__(self):
-            self._active_workers = []
+        def __init__(self, max_concurrent_workers: int = 8):
+            """Initialize napari worker manager.
 
-        def start_thumbnail_worker(
+            Args:
+                max_concurrent_workers: Maximum number of workers that can run simultaneously.
+                    Default is 8 to balance performance and system stability with large projects.
+            """
+            super().__init__(max_concurrent_workers)
+
+        def _create_thumbnail_worker(
             self,
             item: Union["CopickRun", "CopickTomogram"],
             thumbnail_id: str,
             callback: Callable[[str, Optional[Any], Optional[str]], None],
             force_regenerate: bool = False,
-        ) -> None:
-            """Start a thumbnail loading worker for either a run or specific tomogram."""
-            worker = NapariThumbnailWorker(item, thumbnail_id, callback, force_regenerate)
-            self._active_workers.append(worker)
-            worker.start()
+        ) -> NapariThumbnailWorker:
+            """Create a napari thumbnail worker."""
+            return NapariThumbnailWorker(item, thumbnail_id, callback, force_regenerate)
 
-        def start_data_worker(
+        def _create_data_worker(
             self,
             run: "CopickRun",
             data_type: str,
             callback: Callable[[str, Optional[Any], Optional[str]], None],
-        ) -> None:
-            """Start a data loading worker for the specified data type."""
-            worker = NapariDataWorker(run, data_type, callback)
-            self._active_workers.append(worker)
+        ) -> NapariDataWorker:
+            """Create a napari data worker."""
+            return NapariDataWorker(run, data_type, callback)
+
+        def _start_worker(self, worker: Union[NapariThumbnailWorker, NapariDataWorker]) -> None:
+            """Start a napari worker."""
             worker.start()
 
-        def clear_workers(self) -> None:
-            """Clear all pending workers."""
-            for worker in self._active_workers:
-                worker.cancel()
-            self._active_workers.clear()
+        def _is_worker_active(self, worker: Union[NapariThumbnailWorker, NapariDataWorker]) -> bool:
+            """Check if a napari worker is still active."""
+            return (
+                hasattr(worker, "_worker_func")
+                and worker._worker_func is not None
+                and hasattr(worker, "_finished")
+                and not worker._finished
+            )
 
-        def shutdown_workers(self, timeout_ms: int = 3000) -> None:
-            """Shutdown all workers with timeout."""
-            self.clear_workers()
-            # napari workers don't have a shutdown mechanism like QThreadPool
-            # The cancelled flag should handle cleanup
+        def _cancel_worker(self, worker: Union[NapariThumbnailWorker, NapariDataWorker]) -> None:
+            """Cancel a napari worker."""
+            worker.cancel()

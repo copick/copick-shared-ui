@@ -351,9 +351,7 @@ class CopickGalleryWidget(QWidget):
 
         # Reset all cards to loading state
         for card in self.all_run_cards.values():
-            card.thumbnail_label.setText("Regenerating...")
-            card.thumbnail_label.setPixmap(None)  # Clear existing pixmap
-            card.status_label.setVisible(False)
+            card.set_loading("Regenerating...")
 
         # Force regenerate all visible thumbnails
         for run in self.filtered_runs:

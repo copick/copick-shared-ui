@@ -143,8 +143,23 @@ class RunCard(QFrame):
         else:
             self.thumbnail_label.setText("No thumbnail")
 
+    def set_loading(self, message: str = "Loading...") -> None:
+        """Show loading state."""
+        try:
+            from qtpy.QtGui import QPixmap
+        except ImportError:
+            from Qt.QtGui import QPixmap
+        self.thumbnail_label.setPixmap(QPixmap())  # Clear any existing pixmap
+        self.thumbnail_label.setText(message)
+        self.status_label.setVisible(False)
+
     def set_error(self, error_message: str) -> None:
         """Show error state."""
+        try:
+            from qtpy.QtGui import QPixmap
+        except ImportError:
+            from Qt.QtGui import QPixmap
+        self.thumbnail_label.setPixmap(QPixmap())  # Clear any existing pixmap
         self.thumbnail_label.setText("Error")
         self.status_label.setText(f"Error: {error_message}")
         self.status_label.setVisible(True)

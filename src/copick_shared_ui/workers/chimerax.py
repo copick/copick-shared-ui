@@ -48,6 +48,8 @@ except ImportError:
 from .base import AbstractThumbnailWorker
 from .data_worker import AbstractDataWorker
 
+# Removed AbstractWorkerManager import - using Qt's built-in queue instead
+
 if TYPE_CHECKING:
     from copick.models import CopickRun, CopickTomogram
 
@@ -91,6 +93,7 @@ class ChimeraXThumbnailWorker(AbstractThumbnailWorker, QRunnable, metaclass=Comp
         QRunnable.__init__(self)
         self.signals = signals
         self._cancelled = False
+        self._finished = False
 
     def start(self) -> None:
         """Start method for compatibility - actual start is via QThreadPool."""
@@ -103,6 +106,7 @@ class ChimeraXThumbnailWorker(AbstractThumbnailWorker, QRunnable, metaclass=Comp
     def run(self) -> None:
         """Run method called by QThreadPool."""
         if self._cancelled:
+            self._finished = True
             return
 
         try:
@@ -112,6 +116,8 @@ class ChimeraXThumbnailWorker(AbstractThumbnailWorker, QRunnable, metaclass=Comp
 
         except Exception as e:
             self.signals.thumbnail_loaded.emit(self.thumbnail_id, None, str(e))
+        finally:
+            self._finished = True
 
     def _setup_cache_image_interface(self) -> None:
         """Set up ChimeraX-specific image interface for caching."""
@@ -190,6 +196,7 @@ class ChimeraXDataWorker(AbstractDataWorker, QRunnable, metaclass=CompatibleData
         AbstractDataWorker.__init__(self, run, data_type, callback)
         QRunnable.__init__(self)
         self.signals = signals
+        self._finished = False
 
     def start(self) -> None:
         """Start method for compatibility - actual start is via QThreadPool."""
@@ -202,6 +209,7 @@ class ChimeraXDataWorker(AbstractDataWorker, QRunnable, metaclass=CompatibleData
     def run(self) -> None:
         """Run method called by QThreadPool."""
         if self._cancelled:
+            self._finished = True
             return
 
         try:
@@ -211,20 +219,31 @@ class ChimeraXDataWorker(AbstractDataWorker, QRunnable, metaclass=CompatibleData
 
         except Exception as e:
             self.signals.data_loaded.emit(self.data_type, None, str(e))
+        finally:
+            self._finished = True
 
 
 class ChimeraXWorkerManager:
-    """Manages ChimeraX thumbnail and data workers using QThreadPool."""
+    """Manages ChimeraX thumbnail and data workers using QThreadPool's built-in queue."""
 
-    def __init__(self):
+    def __init__(self, max_concurrent_workers: int = 8):
+        """Initialize ChimeraX worker manager.
+
+        Args:
+            max_concurrent_workers: Maximum number of workers that can run simultaneously.
+                Default is 8 to balance performance and system stability with large projects.
+        """
+        self._max_concurrent = max_concurrent_workers
+        print(f"🎛️ ChimeraXWorkerManager: Initialized with max {max_concurrent_workers} concurrent workers")
+
         if QT_AVAILABLE:
             self._thread_pool = QThreadPool()
-            self._thread_pool.setMaxThreadCount(16)
+            # Use Qt's built-in queue management
+            self._thread_pool.setMaxThreadCount(max_concurrent_workers)
+            print(f"✅ ChimeraXWorkerManager: QThreadPool max threads set to {max_concurrent_workers}")
         else:
             self._thread_pool = None
-
-        self._signals = ChimeraXWorkerSignals()
-        self._active_workers = []
+            print("❌ ChimeraXWorkerManager: Qt not available")
 
     def start_thumbnail_worker(
         self,
@@ -233,18 +252,25 @@ class ChimeraXWorkerManager:
         callback: Callable[[str, Optional[Any], Optional[str]], None],
         force_regenerate: bool = False,
     ) -> None:
-        """Start a thumbnail loading worker for either a run or specific tomogram."""
+        """Start a thumbnail loading worker."""
         if not QT_AVAILABLE or not self._thread_pool:
             callback(thumbnail_id, None, "Qt not available")
             return
+
+        print(f"🚀 ChimeraXWorkerManager: Starting thumbnail worker for '{thumbnail_id}' (force={force_regenerate})")
 
         # Create unique signals for each worker to avoid callback conflicts
         worker_signals = ChimeraXWorkerSignals()
         worker_signals.thumbnail_loaded.connect(callback)
 
         worker = ChimeraXThumbnailWorker(worker_signals, item, thumbnail_id, force_regenerate)
-        self._active_workers.append(worker)
+
+        # QThreadPool handles queuing automatically
         self._thread_pool.start(worker)
+
+        print(
+            f"📋 ChimeraXWorkerManager: Active threads: {self._thread_pool.activeThreadCount()}/{self._thread_pool.maxThreadCount()}",
+        )
 
     def start_data_worker(
         self,
@@ -252,31 +278,55 @@ class ChimeraXWorkerManager:
         data_type: str,
         callback: Callable[[str, Optional[Any], Optional[str]], None],
     ) -> None:
-        """Start a data loading worker for the specified data type."""
+        """Start a data loading worker."""
         if not QT_AVAILABLE or not self._thread_pool:
             callback(data_type, None, "Qt not available")
             return
+
+        print(f"🚀 ChimeraXWorkerManager: Starting data worker for '{data_type}'")
 
         # Create unique signals for each worker to avoid callback conflicts
         worker_signals = ChimeraXWorkerSignals()
         worker_signals.data_loaded.connect(callback)
 
         worker = ChimeraXDataWorker(worker_signals, run, data_type)
-        self._active_workers.append(worker)
+
+        # QThreadPool handles queuing automatically
         self._thread_pool.start(worker)
+
+        print(
+            f"📋 ChimeraXWorkerManager: Active threads: {self._thread_pool.activeThreadCount()}/{self._thread_pool.maxThreadCount()}",
+        )
 
     def clear_workers(self) -> None:
         """Clear all pending workers."""
-        for worker in self._active_workers:
-            worker.cancel()
-        self._active_workers.clear()
-
         if self._thread_pool:
             self._thread_pool.clear()
+            print("🧹 ChimeraXWorkerManager: Cleared all pending workers")
 
     def shutdown_workers(self, timeout_ms: int = 3000) -> None:
         """Shutdown all workers with timeout."""
-        self.clear_workers()
-
         if self._thread_pool:
-            self._thread_pool.waitForDone(timeout_ms)
+            print(f"⏹️ ChimeraXWorkerManager: Shutting down workers (timeout: {timeout_ms}ms)")
+            self._thread_pool.clear()
+            success = self._thread_pool.waitForDone(timeout_ms)
+            if success:
+                print("✅ ChimeraXWorkerManager: All workers shutdown successfully")
+            else:
+                print("⚠️ ChimeraXWorkerManager: Some workers may not have shutdown cleanly")
+
+    def get_status(self) -> dict:
+        """Get current worker manager status for debugging."""
+        if self._thread_pool:
+            return {
+                "active_threads": self._thread_pool.activeThreadCount(),
+                "max_threads": self._thread_pool.maxThreadCount(),
+                "class_name": self.__class__.__name__,
+            }
+        else:
+            return {
+                "active_threads": 0,
+                "max_threads": 0,
+                "class_name": self.__class__.__name__,
+                "error": "Qt not available",
+            }
