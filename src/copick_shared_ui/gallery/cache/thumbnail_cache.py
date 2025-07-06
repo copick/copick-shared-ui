@@ -6,45 +6,45 @@ import os
 import platform
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Optional
 
 
 class ImageInterface(ABC):
     """Abstract interface for image operations to support different GUI frameworks."""
-    
+
     @abstractmethod
     def save_image(self, image: Any, path: str, format: str = "PNG") -> bool:
         """Save an image to disk.
-        
+
         Args:
             image: The image object (framework-specific)
             path: File path to save to
             format: Image format (default: PNG)
-            
+
         Returns:
             True if successful, False otherwise
         """
         pass
-    
+
     @abstractmethod
     def load_image(self, path: str) -> Optional[Any]:
         """Load an image from disk.
-        
+
         Args:
             path: File path to load from
-            
+
         Returns:
             Image object if successful, None otherwise
         """
         pass
-    
+
     @abstractmethod
     def is_valid_image(self, image: Any) -> bool:
         """Check if an image object is valid.
-        
+
         Args:
             image: The image object to check
-            
+
         Returns:
             True if valid, False otherwise
         """
@@ -70,7 +70,7 @@ class ThumbnailCache:
 
     def set_image_interface(self, image_interface: ImageInterface) -> None:
         """Set the image interface for handling image operations.
-        
+
         Args:
             image_interface: Implementation of ImageInterface for the specific GUI framework
         """
@@ -200,7 +200,7 @@ class ThumbnailCache:
         if not self._image_interface:
             print("Error: No image interface set for thumbnail cache")
             return False
-            
+
         try:
             thumbnail_path = self.get_thumbnail_path(cache_key)
             return self._image_interface.save_image(image, str(thumbnail_path), "PNG")
@@ -220,7 +220,7 @@ class ThumbnailCache:
         if not self._image_interface:
             print("Error: No image interface set for thumbnail cache")
             return None
-            
+
         try:
             thumbnail_path = self.get_thumbnail_path(cache_key)
             if thumbnail_path.exists():
@@ -286,26 +286,26 @@ class ThumbnailCache:
 
 class GlobalCacheManager:
     """Manager for global thumbnail cache instances."""
-    
+
     def __init__(self):
         self._caches: Dict[str, ThumbnailCache] = {}
-    
+
     def get_cache(self, app_name: str = "copick") -> ThumbnailCache:
         """Get a thumbnail cache instance for the given app name.
-        
+
         Args:
             app_name: Name of the application
-            
+
         Returns:
             ThumbnailCache instance
         """
         if app_name not in self._caches:
             self._caches[app_name] = ThumbnailCache(app_name=app_name)
         return self._caches[app_name]
-    
+
     def set_cache_config(self, config_path: str, app_name: str = "copick") -> None:
         """Set the config path for a cache instance.
-        
+
         Args:
             config_path: Path to the config file
             app_name: Name of the application

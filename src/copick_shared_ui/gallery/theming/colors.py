@@ -6,7 +6,7 @@ from typing import Dict
 COLOR_SCHEMES = {
     "light": {
         "bg_primary": "#ffffff",
-        "bg_secondary": "#f5f5f5", 
+        "bg_secondary": "#f5f5f5",
         "bg_tertiary": "#e8e8e8",
         "bg_quaternary": "#d1d1d1",
         "text_primary": "#2c2c2c",
@@ -37,7 +37,7 @@ COLOR_SCHEMES = {
         "success": "#28a745",
         "warning": "#ffc107",
         "error": "#dc3545",
-    }
+    },
 }
 
 
@@ -55,20 +55,20 @@ def interpolate_colors(color1: str, color2: str, factor: float) -> str:
     """Interpolate between two hex colors."""
     try:
         # Remove # prefix if present
-        color1 = color1.lstrip('#')
-        color2 = color2.lstrip('#')
-        
+        color1 = color1.lstrip("#")
+        color2 = color2.lstrip("#")
+
         # Convert to RGB
         r1, g1, b1 = int(color1[0:2], 16), int(color1[2:4], 16), int(color1[4:6], 16)
         r2, g2, b2 = int(color2[0:2], 16), int(color2[2:4], 16), int(color2[4:6], 16)
-        
+
         # Interpolate
         r = int(r1 + (r2 - r1) * factor)
         g = int(g1 + (g2 - g1) * factor)
         b = int(b1 + (b2 - b1) * factor)
-        
+
         # Convert back to hex
         return f"#{r:02x}{g:02x}{b:02x}"
-        
+
     except Exception:
         return color1  # Fallback to first color
