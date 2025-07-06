@@ -84,6 +84,10 @@ class ThumbnailCache:
             base_cache_dir = Path(os.environ.get("LOCALAPPDATA", "")) / self.app_name / "thumbnails"
         elif platform.system() == "Darwin":  # macOS
             base_cache_dir = Path.home() / "Library" / "Caches" / self.app_name / "thumbnails"
+            print(f"🍎 macOS detected - base cache directory: {base_cache_dir}")
+            print(f"🍎 Home directory: {Path.home()}")
+            print(f"🍎 Library directory exists: {(Path.home() / 'Library').exists()}")
+            print(f"🍎 Library/Caches directory exists: {(Path.home() / 'Library' / 'Caches').exists()}")
         else:  # Linux and other Unix-like systems
             cache_home = os.environ.get("XDG_CACHE_HOME", str(Path.home() / ".cache"))
             base_cache_dir = Path(cache_home) / self.app_name / "thumbnails"
@@ -92,12 +96,28 @@ class ThumbnailCache:
             # Create hash of the config file path and content for cache namespacing
             self.config_hash = self._compute_config_hash(self.config_path)
             self.cache_dir = base_cache_dir / self.config_hash
+            print(f"🔑 Using config-specific cache directory: {self.cache_dir}")
+            print(f"🔑 Config path: {self.config_path}")
+            print(f"🔑 Config hash: {self.config_hash}")
         else:
             # Fallback to generic cache directory
             self.cache_dir = base_cache_dir / "default"
+            print(f"🔄 Using default cache directory: {self.cache_dir}")
+
+        print(f"📁 Cache directory path: {self.cache_dir}")
+        print(f"📁 Cache directory exists before creation: {self.cache_dir.exists()}")
+        print(f"📁 Parent directory exists: {self.cache_dir.parent.exists()}")
+        print(f"📁 Parent directory writable: {os.access(self.cache_dir.parent, os.W_OK) if self.cache_dir.parent.exists() else 'Parent does not exist'}")
 
         # Create the cache directory if it doesn't exist
-        self.cache_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            self.cache_dir.mkdir(parents=True, exist_ok=True)
+            print(f"📁 Cache directory created successfully")
+            print(f"📁 Cache directory exists after creation: {self.cache_dir.exists()}")
+            print(f"📁 Cache directory writable: {os.access(self.cache_dir, os.W_OK) if self.cache_dir.exists() else 'Directory does not exist'}")
+        except Exception as e:
+            print(f"❌ Error creating cache directory: {e}")
+            raise
 
         # Create metadata file if it doesn't exist
         self._ensure_metadata_file()
@@ -161,7 +181,9 @@ class ThumbnailCache:
 
         key_string = "_".join(key_parts)
         # Hash the key to handle special characters and ensure consistent filename
-        return hashlib.md5(key_string.encode("utf-8")).hexdigest()
+        cache_key = hashlib.md5(key_string.encode("utf-8")).hexdigest()
+        print(f"🔑 Cache key generation: '{key_string}' -> '{cache_key}'")
+        return cache_key
 
     def get_thumbnail_path(self, cache_key: str) -> Path:
         """Get the file path for a thumbnail cache file.
@@ -185,6 +207,13 @@ class ThumbnailCache:
         """
         thumbnail_path = self.get_thumbnail_path(cache_key)
         exists = thumbnail_path.exists()
+        print(f"📁 Checking thumbnail existence: {thumbnail_path} -> {exists}")
+        if exists:
+            try:
+                stat = thumbnail_path.stat()
+                print(f"📁 Thumbnail file size: {stat.st_size} bytes, modified: {stat.st_mtime}")
+            except Exception as e:
+                print(f"📁 Error getting thumbnail stats: {e}")
         return exists
 
     def save_thumbnail(self, cache_key: str, image: Any) -> bool:
@@ -198,15 +227,33 @@ class ThumbnailCache:
             True if successful, False otherwise
         """
         if not self._image_interface:
-            print("Error: No image interface set for thumbnail cache")
+            print("❌ Error: No image interface set for thumbnail cache")
             return False
 
         try:
             thumbnail_path = self.get_thumbnail_path(cache_key)
+            print(f"💾 Saving thumbnail for key '{cache_key}' to: {thumbnail_path}")
+            print(f"💾 Image object type: {type(image)}")
+            print(f"💾 Image interface type: {type(self._image_interface)}")
+            print(f"💾 Directory exists: {thumbnail_path.parent.exists()}")
+            print(f"💾 Directory writable: {os.access(thumbnail_path.parent, os.W_OK) if thumbnail_path.parent.exists() else 'Parent does not exist'}")
+            
             success = self._image_interface.save_image(image, str(thumbnail_path), "PNG")
+            print(f"💾 Save operation result: {success}")
+            
+            if success and thumbnail_path.exists():
+                stat = thumbnail_path.stat()
+                print(f"💾 Thumbnail saved successfully - size: {stat.st_size} bytes")
+            elif success:
+                print(f"💾 Save reported success but file doesn't exist: {thumbnail_path}")
+            else:
+                print(f"💾 Save operation failed")
+                
             return success
         except Exception as e:
-            print(f"Error saving thumbnail to cache: {e}")
+            print(f"❌ Error saving thumbnail to cache: {e}")
+            import traceback
+            print(f"❌ Stack trace: {traceback.format_exc()}")
             return False
 
     def load_thumbnail(self, cache_key: str) -> Optional[Any]:
@@ -219,17 +266,35 @@ class ThumbnailCache:
             Image object if successful, None otherwise
         """
         if not self._image_interface:
-            print("Error: No image interface set for thumbnail cache")
+            print("❌ Error: No image interface set for thumbnail cache")
             return None
 
         try:
             thumbnail_path = self.get_thumbnail_path(cache_key)
+            print(f"🔍 Loading thumbnail for key '{cache_key}' from: {thumbnail_path}")
+            
             if thumbnail_path.exists():
+                stat = thumbnail_path.stat()
+                print(f"🔍 Thumbnail file exists - size: {stat.st_size} bytes")
+                
                 image = self._image_interface.load_image(str(thumbnail_path))
-                return image if image and self._image_interface.is_valid_image(image) else None
-            return None
+                print(f"🔍 Image loaded: {image is not None}")
+                
+                if image:
+                    is_valid = self._image_interface.is_valid_image(image)
+                    print(f"🔍 Image valid: {is_valid}")
+                    print(f"🔍 Image type: {type(image)}")
+                    return image if is_valid else None
+                else:
+                    print(f"🔍 Image load returned None")
+                    return None
+            else:
+                print(f"🔍 Thumbnail file does not exist: {thumbnail_path}")
+                return None
         except Exception as e:
-            print(f"Error loading thumbnail from cache: {e}")
+            print(f"❌ Error loading thumbnail from cache: {e}")
+            import traceback
+            print(f"❌ Stack trace: {traceback.format_exc()}")
             return None
 
     def _cleanup_old_cache_entries(self, max_age_days: int = 14) -> None:
