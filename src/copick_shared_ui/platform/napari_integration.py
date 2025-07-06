@@ -76,7 +76,6 @@ class NapariThemeInterface(AbstractThemeInterface):
         """Detect theme from napari viewer."""
         try:
             napari_theme = str(self.viewer.theme)
-            print(f"🎨 Detected napari theme: '{napari_theme}'")
 
             # Map napari themes to our theme system
             if napari_theme.lower() == "light":
@@ -85,7 +84,6 @@ class NapariThemeInterface(AbstractThemeInterface):
                 return "dark"
             else:
                 # For custom themes or unknown themes, default to dark
-                print(f"🎨 Unknown napari theme '{napari_theme}', defaulting to dark")
                 return "dark"
 
         except Exception as e:
@@ -121,7 +119,6 @@ class NapariThemeInterface(AbstractThemeInterface):
         try:
             # Connect to napari's theme change events
             self.viewer.events.theme.connect(lambda event: callback())
-            print("🔗 Connected to napari theme change events")
         except Exception as e:
             print(f"⚠️ Could not connect to napari theme events: {e}")
             # Fallback: periodically check theme changes

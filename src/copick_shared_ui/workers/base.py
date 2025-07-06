@@ -77,10 +77,8 @@ class AbstractThumbnailWorker(ABC):
         if cache_key in self._best_tomogram_cache:
             cached_result = self._best_tomogram_cache[cache_key]
             if cached_result is not None:
-                print(f"🎯 Using cached best tomogram selection for run '{run.name}'")
                 return cached_result
 
-        print(f"🔍 Selecting best tomogram for run '{run.name}'")
         try:
             all_tomograms = []
 
@@ -107,21 +105,18 @@ class AbstractThumbnailWorker(ABC):
                 for preferred_type in preferred_types:
                     for tomo in vs_tomograms:
                         if preferred_type.lower() in tomo.tomo_type.lower():
-                            print(f"✅ Selected best tomogram: {tomo.tomo_type} at {vs_size}Å")
                             self._best_tomogram_cache[cache_key] = tomo
                             return tomo
 
                 # If no preferred type found, return the first tomogram at this voxel spacing
                 if vs_tomograms:
                     selected = vs_tomograms[0]
-                    print(f"✅ Selected fallback tomogram: {selected.tomo_type} at {vs_size}Å")
                     self._best_tomogram_cache[cache_key] = selected
                     return selected
 
             # Final fallback: return any tomogram
             if all_tomograms:
                 selected = all_tomograms[0]
-                print(f"✅ Selected final fallback tomogram: {selected.tomo_type}")
                 self._best_tomogram_cache[cache_key] = selected
                 return selected
 
@@ -139,11 +134,7 @@ class AbstractThumbnailWorker(ABC):
         if not self.force_regenerate and self._cache and self._cache_key and self._cache.has_thumbnail(self._cache_key):
             cached_pixmap = self._cache.load_thumbnail(self._cache_key)
             if cached_pixmap is not None:
-                print(f"📦 Using cached thumbnail for '{self.thumbnail_id}'")
                 return cached_pixmap, None
-
-        # Generate new thumbnail
-        print(f"🎨 Generating new thumbnail for '{self.thumbnail_id}'")
 
         # Determine the tomogram to use
         if self._is_tomogram():
@@ -184,11 +175,7 @@ class AbstractThumbnailWorker(ABC):
         # Cache the result
         if self._cache and self._cache_key:
             try:
-                success = self._cache.save_thumbnail(self._cache_key, pixmap)
-                if success:
-                    print(f"💾 Cached thumbnail for '{self.thumbnail_id}'")
-                else:
-                    print(f"⚠️ Failed to cache thumbnail for '{self.thumbnail_id}'")
+                _ = self._cache.save_thumbnail(self._cache_key, pixmap)
             except Exception as e:
                 print(f"⚠️ Error caching thumbnail: {e}")
 
@@ -205,8 +192,6 @@ class AbstractThumbnailWorker(ABC):
             import numpy as np
             import zarr
 
-            print(f"🔧 Loading zarr data for tomogram: {tomogram.tomo_type}")
-
             # Load tomogram data - handle multi-scale zarr properly
             zarr_group = zarr.open(tomogram.zarr(), mode="r")
 
@@ -218,18 +203,13 @@ class AbstractThumbnailWorker(ABC):
                     # Use the highest scale level (most binned/smallest) for thumbnails
                     highest_scale = scale_levels[-1]  # Last element is highest number = most binned
                     tomo_data = zarr_group[highest_scale]
-                    print(f"🔧 Using highest binning scale level {highest_scale} from multi-scale zarr for thumbnail")
                 else:
                     # Fallback to first key
                     first_key = list(zarr_group.keys())[0]
                     tomo_data = zarr_group[first_key]
-                    print(f"🔧 Using first key '{first_key}' from zarr group")
             else:
                 # Direct zarr array
                 tomo_data = zarr_group
-                print("🔧 Using direct zarr array")
-
-            print(f"📐 Tomogram shape: {tomo_data.shape}")
 
             # Calculate downsampling factor based on data size
             target_size = 200
@@ -237,33 +217,26 @@ class AbstractThumbnailWorker(ABC):
 
             # Use middle slice for 2D thumbnail
             mid_z = z_size // 2
-            print(f"📍 Using middle slice z={mid_z} of {z_size}")
 
             # Calculate downsampling for x and y dimensions
             downsample_x = max(1, x_size // target_size)
             downsample_y = max(1, y_size // target_size)
-            print(f"📉 Downsampling: x={downsample_x}, y={downsample_y}")
 
             # Extract and downsample middle slice
-            print("✂️ Extracting slice...")
             slice_data = tomo_data[mid_z, ::downsample_y, ::downsample_x]
-            print(f"📊 Slice shape: {slice_data.shape}")
 
             # Convert to numpy array
             slice_array = np.array(slice_data)
-            print(f"🔢 Array shape: {slice_array.shape}, dtype: {slice_array.dtype}")
 
             # Normalize to 0-255 range
             slice_array = slice_array.astype(np.float32)
             data_min, data_max = slice_array.min(), slice_array.max()
-            print(f"📈 Data range: {data_min} to {data_max}")
 
             if data_max > data_min:
                 slice_array = ((slice_array - data_min) / (data_max - data_min) * 255).astype(np.uint8)
             else:
                 slice_array = np.zeros_like(slice_array, dtype=np.uint8)
 
-            print(f"✅ Thumbnail array generated: shape={slice_array.shape}, dtype={slice_array.dtype}")
             return slice_array
 
         except Exception as e:

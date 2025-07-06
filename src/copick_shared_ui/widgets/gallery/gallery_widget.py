@@ -124,8 +124,6 @@ class CopickGalleryWidget(QWidget):
 
     def set_copick_root(self, copick_root: Optional[Any]) -> None:
         """Set the copick root and load runs."""
-        print(f"🔄 Gallery: Setting copick root: {copick_root}")
-
         # Clear workers to cancel any pending thumbnail loads from previous session
         self.worker_interface.clear_workers()
 
@@ -139,7 +137,6 @@ class CopickGalleryWidget(QWidget):
         if copick_root:
             self.runs = list(copick_root.runs)
             self.filtered_runs = self.runs.copy()
-            print(f"📂 Gallery: Found {len(self.runs)} runs: {[run.name for run in self.runs]}")
             self._update_grid()
         else:
             self.runs = []
@@ -244,7 +241,6 @@ class CopickGalleryWidget(QWidget):
         if self._is_destroyed:
             return
 
-        print(f"🎨 Gallery: Starting thumbnail load for run '{thumbnail_id}' (force={force_regenerate})")
         self.worker_interface.start_thumbnail_worker(run, thumbnail_id, self._on_thumbnail_loaded, force_regenerate)
 
     def _on_thumbnail_loaded(self, thumbnail_id: str, pixmap: Optional[Any], error: Optional[str]) -> None:
@@ -258,10 +254,8 @@ class CopickGalleryWidget(QWidget):
         card = self.all_run_cards[thumbnail_id]
 
         if error:
-            print(f"❌ Gallery: Thumbnail error for '{thumbnail_id}': {error}")
             card.set_error(error)
         else:
-            print(f"✅ Gallery: Thumbnail loaded for '{thumbnail_id}': {pixmap is not None}")
             card.set_thumbnail(pixmap)
             # Cache the thumbnail for future use
             if pixmap:

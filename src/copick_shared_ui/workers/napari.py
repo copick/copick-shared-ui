@@ -3,17 +3,13 @@
 from typing import TYPE_CHECKING, Any, Callable, Optional, Union
 
 try:
-    print("🔍 Napari Workers: Importing napari threading components")
     from napari.qt.threading import thread_worker
     from qtpy.QtCore import QObject, Signal
     from qtpy.QtGui import QImage, QPixmap
 
     NAPARI_AVAILABLE = True
-    print("✅ Napari Workers: napari threading components imported successfully")
-except ImportError as e:
-    print(f"❌ Napari Workers: napari threading import failed: {e}")
+except ImportError:
     NAPARI_AVAILABLE = False
-    print("✅ Napari Workers: Will skip napari-specific functionality")
 
 if NAPARI_AVAILABLE:
     from .base import AbstractThumbnailWorker
@@ -49,17 +45,14 @@ if NAPARI_AVAILABLE:
 
         def start(self) -> None:
             """Start the thumbnail loading work using napari's thread_worker."""
-            print(f"🚀 NapariWorker: Starting thumbnail work for '{self.thumbnail_id}'")
 
             if not NAPARI_AVAILABLE:
-                print(f"❌ NapariWorker: napari not available for '{self.thumbnail_id}'")
                 self.callback(self.thumbnail_id, None, "napari not available")
                 return
 
             # Create the worker function as a generator for better control
             @thread_worker
             def load_thumbnail():
-                print(f"🔧 NapariWorker: Inside generator thread_worker for '{self.thumbnail_id}'")
 
                 # Check cancellation before starting
                 if self._cancelled:
@@ -85,7 +78,6 @@ if NAPARI_AVAILABLE:
                     if self._cache and self._cache_key and not self.force_regenerate:
                         cached_pixmap = self._cache.load_thumbnail(self._cache_key)
                         if cached_pixmap is not None:
-                            print(f"📦 Using cached thumbnail for '{self.thumbnail_id}'")
                             return cached_pixmap, None
 
                     # Step 2: Determine tomogram to use
@@ -131,13 +123,10 @@ if NAPARI_AVAILABLE:
 
                     if self._cache and self._cache_key:
                         try:
-                            success = self._cache.save_thumbnail(self._cache_key, pixmap)
-                            if success:
-                                print(f"💾 Cached thumbnail for '{self.thumbnail_id}'")
+                            _ = self._cache.save_thumbnail(self._cache_key, pixmap)
                         except Exception as e:
                             print(f"⚠️ Error caching thumbnail: {e}")
 
-                    print(f"✅ NapariWorker: Successfully created thumbnail for '{self.thumbnail_id}'")
                     return pixmap, None
 
                 except Exception as e:
@@ -148,17 +137,14 @@ if NAPARI_AVAILABLE:
                     return None, str(e)
 
             # Connect worker signals
-            print(f"🔗 NapariWorker: Creating and connecting worker for '{self.thumbnail_id}'")
             worker = load_thumbnail()
             worker.returned.connect(self._on_worker_finished)
             worker.errored.connect(self._on_worker_error)
 
             # Store reference to worker
             self._worker_func = worker
-            print(f"📦 NapariWorker: Worker stored for '{self.thumbnail_id}'")
 
             # Actually start the worker!
-            print(f"▶️ NapariWorker: Starting worker execution for '{self.thumbnail_id}'")
             worker.start()
 
         def cancel(self) -> None:
@@ -167,7 +153,6 @@ if NAPARI_AVAILABLE:
             if self._worker_func:
                 # Use napari's quit method to abort the worker
                 if hasattr(self._worker_func, "quit"):
-                    print(f"🛑 NapariWorker: Calling quit() on worker for '{self.thumbnail_id}'")
                     self._worker_func.quit()
                 else:
                     print(f"⚠️ NapariWorker: Worker for '{self.thumbnail_id}' has no quit method")
@@ -225,24 +210,17 @@ if NAPARI_AVAILABLE:
                         # Use the highest scale level (most binned/smallest) for thumbnails
                         highest_scale = scale_levels[-1]  # Last element is highest number = most binned
                         tomo_data = zarr_group[highest_scale]
-                        print(
-                            f"🔧 Using highest binning scale level {highest_scale} from multi-scale zarr for thumbnail",
-                        )
                     else:
                         # Fallback to first key
                         first_key = list(zarr_group.keys())[0]
                         tomo_data = zarr_group[first_key]
-                        print(f"🔧 Using first key '{first_key}' from zarr group")
                 else:
                     # Direct zarr array
                     tomo_data = zarr_group
-                    print("🔧 Using direct zarr array")
 
                 # Check cancellation after getting data reference
                 if self._cancelled:
                     return None
-
-                print(f"📐 Tomogram shape: {tomo_data.shape}")
 
                 # Calculate downsampling factor based on data size
                 target_size = 200
@@ -280,7 +258,6 @@ if NAPARI_AVAILABLE:
                 else:
                     thumbnail = np.zeros_like(thumbnail, dtype=np.uint8)
 
-                print(f"📐 Generated thumbnail shape: {thumbnail.shape}")
                 return thumbnail
 
             except Exception as e:
@@ -353,7 +330,6 @@ if NAPARI_AVAILABLE:
 
         def start(self) -> None:
             """Start the data loading work using napari's thread_worker."""
-            print(f"🚀 NapariDataWorker: Starting data loading for '{self.data_type}'")
 
             if not NAPARI_AVAILABLE:
                 print(f"❌ NapariDataWorker: napari not available for '{self.data_type}'")
@@ -368,7 +344,6 @@ if NAPARI_AVAILABLE:
             # Create the worker function as a generator for better control
             @thread_worker
             def load_data():
-                print(f"🔧 NapariDataWorker: Inside generator thread_worker for '{worker_data_type}'")
 
                 if worker_cancelled():
                     print(f"⚠️ NapariDataWorker: Cancelled '{worker_data_type}' before starting")
@@ -384,8 +359,6 @@ if NAPARI_AVAILABLE:
                         return None, "Cancelled"
 
                     # Use base class data loading logic directly
-                    print(f"🔍 Loading {worker_data_type} for run '{worker_run.name}'")
-
                     if worker_data_type == "voxel_spacings":
                         data = list(worker_run.voxel_spacings)
                     elif worker_data_type == "tomograms":
@@ -407,28 +380,23 @@ if NAPARI_AVAILABLE:
                     if worker_cancelled():
                         return None, "Cancelled"
 
-                    print(f"✅ NapariDataWorker: Successfully loaded {len(data)} {worker_data_type} items")
                     return data, None
 
                 except Exception as e:
-                    print(f"💥 NapariDataWorker: Exception loading '{worker_data_type}': {e}")
                     import traceback
 
                     traceback.print_exc()
                     return None, str(e)
 
             # Connect worker signals
-            print(f"🔗 NapariDataWorker: Creating and connecting worker for '{self.data_type}'")
             worker = load_data()
             worker.returned.connect(self._on_worker_finished)
             worker.errored.connect(self._on_worker_error)
 
             # Store reference to worker
             self._worker_func = worker
-            print(f"📦 NapariDataWorker: Worker stored for '{self.data_type}'")
 
             # Actually start the worker!
-            print(f"▶️ NapariDataWorker: Starting worker execution for '{self.data_type}'")
             worker.start()
 
         def cancel(self) -> None:
@@ -437,7 +405,6 @@ if NAPARI_AVAILABLE:
             if self._worker_func:
                 # Use napari's quit method to abort the worker
                 if hasattr(self._worker_func, "quit"):
-                    print(f"🛑 NapariDataWorker: Calling quit() on worker for '{self.data_type}'")
                     self._worker_func.quit()
                 else:
                     print(f"⚠️ NapariDataWorker: Worker for '{self.data_type}' has no quit method")

@@ -37,8 +37,6 @@ class AbstractDataWorker(ABC):
             return None, "Cancelled"
 
         try:
-            print(f"🔍 Loading {self.data_type} for run '{self.run.name}'")
-
             if self.data_type == "voxel_spacings":
                 data = list(self.run.voxel_spacings)
             elif self.data_type == "tomograms":
@@ -60,7 +58,6 @@ class AbstractDataWorker(ABC):
             if self._cancelled:
                 return None, "Cancelled"
 
-            print(f"✅ Loaded {len(data)} {self.data_type} items for run '{self.run.name}'")
             return data, None
 
         except Exception as e:

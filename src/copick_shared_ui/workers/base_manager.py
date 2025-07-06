@@ -20,7 +20,6 @@ class AbstractWorkerManager(ABC):
         self._max_concurrent = max_concurrent_workers
         self._active_workers = []
         self._pending_queue = []
-        print(f"🎛️ {self.__class__.__name__}: Initialized with max {max_concurrent_workers} concurrent workers")
 
     def start_thumbnail_worker(
         self,
@@ -60,9 +59,6 @@ class AbstractWorkerManager(ABC):
             self._start_worker_from_info(worker_info)
         else:
             self._pending_queue.append(worker_info)
-            print(
-                f"⏳ {self.__class__.__name__}: Queued {worker_info['type']} worker (queue size: {len(self._pending_queue)})",
-            )
 
     @abstractmethod
     def _create_thumbnail_worker(
@@ -106,14 +102,10 @@ class AbstractWorkerManager(ABC):
                 self._create_callback_wrapper(worker_info["callback"]),
             )
         else:
-            print(f"❌ {self.__class__.__name__}: Unknown worker type: {worker_info['type']}")
             return
 
         self._active_workers.append(worker)
         self._start_worker(worker)
-        print(
-            f"🚀 {self.__class__.__name__}: Started {worker_info['type']} worker ({len(self._active_workers)}/{self._max_concurrent} active)",
-        )
 
     def _create_callback_wrapper(self, original_callback: Callable) -> Callable:
         """Create a callback wrapper that handles worker completion and queue processing."""
@@ -135,9 +127,6 @@ class AbstractWorkerManager(ABC):
         # Start next queued worker if any
         if self._pending_queue and len(self._active_workers) < self._max_concurrent:
             next_worker_info = self._pending_queue.pop(0)
-            print(
-                f"🔄 {self.__class__.__name__}: Starting next queued {next_worker_info['type']} worker (queue size: {len(self._pending_queue)})",
-            )
             self._start_worker_from_info(next_worker_info)
 
     @abstractmethod
@@ -159,7 +148,6 @@ class AbstractWorkerManager(ABC):
 
         # Clear pending queue
         self._pending_queue.clear()
-        print(f"🧹 {self.__class__.__name__}: Cleared all active and pending workers")
 
     def shutdown_workers(self, timeout_ms: int = 3000) -> None:
         """Shutdown all workers with timeout."""
@@ -178,7 +166,6 @@ class AbstractWorkerManager(ABC):
         """Update the maximum number of concurrent workers."""
         old_max = self._max_concurrent
         self._max_concurrent = max_workers
-        print(f"🎛️ {self.__class__.__name__}: Updated max concurrent workers from {old_max} to {max_workers}")
 
         # If we increased the limit, try to start queued workers
         if max_workers > old_max:
@@ -188,5 +175,4 @@ class AbstractWorkerManager(ABC):
         """Process pending queue to start workers if slots are available."""
         while self._pending_queue and len(self._active_workers) < self._max_concurrent:
             next_worker_info = self._pending_queue.pop(0)
-            print(f"🔄 {self.__class__.__name__}: Starting queued {next_worker_info['type']} worker")
             self._start_worker_from_info(next_worker_info)

@@ -22,7 +22,6 @@ class QtImageInterface(ImageInterface):
 
             self._QPixmap = QPixmap
             self._qt_available = True
-            print("🎨 Using qtpy for image interface")
         except ImportError:
             try:
                 # Fall back to Qt (ChimeraX)
@@ -30,9 +29,7 @@ class QtImageInterface(ImageInterface):
 
                 self._QPixmap = QPixmap
                 self._qt_available = True
-                print("🎨 Using Qt for image interface")
             except ImportError:
-                print("❌ Neither qtpy nor Qt available for image interface")
                 self._qt_available = False
 
     def save_image(self, image: Any, path: str, format: str = "PNG") -> bool:
