@@ -120,3 +120,39 @@ def connect_theme_change(callback: Callable[[], None]) -> bool:
     qt_connected = connect_theme_change_qt(callback)
 
     return napari_connected or qt_connected
+
+
+def detect_napari_theme(viewer) -> str:
+    """
+    Detect napari theme based on viewer instance.
+
+    Args:
+        viewer: napari viewer instance
+
+    Returns:
+        'dark' or 'light' theme string
+    """
+    try:
+        # Try to get theme from napari viewer
+        if hasattr(viewer, "theme"):
+            theme_name = viewer.theme
+            if "dark" in theme_name.lower():
+                return "dark"
+            elif "light" in theme_name.lower():
+                return "light"
+
+        # Fallback to general napari theme detection
+        theme = _detect_napari_theme()
+        if theme:
+            return theme
+
+        # Fallback to palette-based detection
+        theme = _detect_qt_theme()
+        if theme:
+            return theme
+
+    except Exception:
+        pass
+
+    # Default to dark theme (common for napari)
+    return "dark"
