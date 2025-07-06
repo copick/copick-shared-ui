@@ -26,7 +26,9 @@ dynamic = ["version"]
 dependencies = [
     "qtpy",
     "pydantic>=2",
-    "copick@git+https://github.com/copick/copick.git@de80ec0",
+    "copick>=1.5.0",
+    "zarr>=2.10.0",
+    "numpy>=1.21.0",
 ]
 authors = [
     {name = "Utz H. Ermel", email = "utz@ermel.me"},
@@ -55,7 +57,7 @@ dev = [
 ]
 testing = [
     "tox",
-    "tox-gh-actions", 
+    "tox-gh-actions",
     "tox-uv",
     "pytest",
     "pytest-cov",
@@ -98,6 +100,7 @@ ignore = [
     "W293",   # blank line contains whitespace
     "B008",   # Do not perform calls in argument defaults
     "B905",   # `zip()` without an explicit `strict=` parameter
+    "F401",   # module imported but unused
     "N802",   # Function name should be lowercase
     "N805",   # First argument of a method should be named `self`
     "N806",   # Variable in function should be lowercase
