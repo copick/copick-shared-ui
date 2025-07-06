@@ -234,16 +234,13 @@ class ChimeraXWorkerManager:
                 Default is 8 to balance performance and system stability with large projects.
         """
         self._max_concurrent = max_concurrent_workers
-        print(f"🎛️ ChimeraXWorkerManager: Initialized with max {max_concurrent_workers} concurrent workers")
 
         if QT_AVAILABLE:
             self._thread_pool = QThreadPool()
             # Use Qt's built-in queue management
             self._thread_pool.setMaxThreadCount(max_concurrent_workers)
-            print(f"✅ ChimeraXWorkerManager: QThreadPool max threads set to {max_concurrent_workers}")
         else:
             self._thread_pool = None
-            print("❌ ChimeraXWorkerManager: Qt not available")
 
     def start_thumbnail_worker(
         self,
@@ -257,8 +254,6 @@ class ChimeraXWorkerManager:
             callback(thumbnail_id, None, "Qt not available")
             return
 
-        print(f"🚀 ChimeraXWorkerManager: Starting thumbnail worker for '{thumbnail_id}' (force={force_regenerate})")
-
         # Create unique signals for each worker to avoid callback conflicts
         worker_signals = ChimeraXWorkerSignals()
         worker_signals.thumbnail_loaded.connect(callback)
@@ -267,10 +262,6 @@ class ChimeraXWorkerManager:
 
         # QThreadPool handles queuing automatically
         self._thread_pool.start(worker)
-
-        print(
-            f"📋 ChimeraXWorkerManager: Active threads: {self._thread_pool.activeThreadCount()}/{self._thread_pool.maxThreadCount()}",
-        )
 
     def start_data_worker(
         self,
@@ -283,8 +274,6 @@ class ChimeraXWorkerManager:
             callback(data_type, None, "Qt not available")
             return
 
-        print(f"🚀 ChimeraXWorkerManager: Starting data worker for '{data_type}'")
-
         # Create unique signals for each worker to avoid callback conflicts
         worker_signals = ChimeraXWorkerSignals()
         worker_signals.data_loaded.connect(callback)
@@ -294,26 +283,16 @@ class ChimeraXWorkerManager:
         # QThreadPool handles queuing automatically
         self._thread_pool.start(worker)
 
-        print(
-            f"📋 ChimeraXWorkerManager: Active threads: {self._thread_pool.activeThreadCount()}/{self._thread_pool.maxThreadCount()}",
-        )
-
     def clear_workers(self) -> None:
         """Clear all pending workers."""
         if self._thread_pool:
             self._thread_pool.clear()
-            print("🧹 ChimeraXWorkerManager: Cleared all pending workers")
 
     def shutdown_workers(self, timeout_ms: int = 3000) -> None:
         """Shutdown all workers with timeout."""
         if self._thread_pool:
-            print(f"⏹️ ChimeraXWorkerManager: Shutting down workers (timeout: {timeout_ms}ms)")
             self._thread_pool.clear()
-            success = self._thread_pool.waitForDone(timeout_ms)
-            if success:
-                print("✅ ChimeraXWorkerManager: All workers shutdown successfully")
-            else:
-                print("⚠️ ChimeraXWorkerManager: Some workers may not have shutdown cleanly")
+            _ = self._thread_pool.waitForDone(timeout_ms)
 
     def get_status(self) -> dict:
         """Get current worker manager status for debugging."""

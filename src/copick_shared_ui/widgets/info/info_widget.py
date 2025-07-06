@@ -219,7 +219,6 @@ class CopickInfoWidget(QWidget):
         if self._is_destroyed:
             return
 
-        print(f"CopickInfoWidget.set_run called with run: {run.name if run else 'None'}")
         self.current_run = run
         if run:
             self.current_run_name = run.name
@@ -235,7 +234,6 @@ class CopickInfoWidget(QWidget):
             self._loading_states.clear()
 
         self._update_display()
-        print(f"CopickInfoWidget.set_run completed for run: {run.name if run else 'None'}")
 
     def _start_async_loading(self) -> None:
         """Start asynchronous loading of all run data."""
@@ -255,8 +253,6 @@ class CopickInfoWidget(QWidget):
         if not self.current_run or self._is_destroyed:
             return
 
-        print(f"🚀 InfoWidget: Starting threaded data loading for '{data_type}'")
-
         # Use the worker interface to start threaded data loading
         self.worker_interface.start_data_worker(
             run=self.current_run,
@@ -266,10 +262,6 @@ class CopickInfoWidget(QWidget):
 
     def _handle_data_loaded(self, data_type: str, data: Optional[List[Any]], error: Optional[str]) -> None:
         """Handle data loading completion."""
-        print(
-            f"📥 InfoWidget: _handle_data_loaded called for '{data_type}' - error: {error}, data count: {len(data) if data else 0}",
-        )
-
         if self._is_destroyed:
             print(f"⚠️ InfoWidget: Widget destroyed, ignoring data for '{data_type}'")
             return
@@ -278,12 +270,10 @@ class CopickInfoWidget(QWidget):
             print(f"❌ InfoWidget: Error loading '{data_type}': {error}")
             self._loading_states[data_type] = f"error: {error}"
         else:
-            print(f"✅ InfoWidget: Successfully loaded {len(data) if data else 0} '{data_type}' items")
             self._loading_states[data_type] = "loaded"
             self._loaded_data[data_type] = data or []
 
         # Update display
-        print(f"🔄 InfoWidget: Calling _update_display for '{data_type}'")
         self._update_display()
 
     @Slot()

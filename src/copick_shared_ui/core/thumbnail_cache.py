@@ -98,7 +98,6 @@ class ThumbnailCache:
 
         # Create the cache directory if it doesn't exist
         self.cache_dir.mkdir(parents=True, exist_ok=True)
-        print(f"📁 Thumbnail cache directory: {self.cache_dir}")
 
         # Create metadata file if it doesn't exist
         self._ensure_metadata_file()
@@ -186,7 +185,6 @@ class ThumbnailCache:
         """
         thumbnail_path = self.get_thumbnail_path(cache_key)
         exists = thumbnail_path.exists()
-        # Uncomment for debugging: print(f"CACHE DEBUG: Checking cache for key '{cache_key}' at {thumbnail_path} -> {'EXISTS' if exists else 'NOT FOUND'}")
         return exists
 
     def save_thumbnail(self, cache_key: str, image: Any) -> bool:
@@ -206,10 +204,6 @@ class ThumbnailCache:
         try:
             thumbnail_path = self.get_thumbnail_path(cache_key)
             success = self._image_interface.save_image(image, str(thumbnail_path), "PNG")
-            if success:
-                print(f"💾 Saved thumbnail to: {thumbnail_path}")
-            else:
-                print(f"❌ Failed to save thumbnail to: {thumbnail_path}")
             return success
         except Exception as e:
             print(f"Error saving thumbnail to cache: {e}")
@@ -231,11 +225,8 @@ class ThumbnailCache:
         try:
             thumbnail_path = self.get_thumbnail_path(cache_key)
             if thumbnail_path.exists():
-                print(f"📦 Loading cached thumbnail from: {thumbnail_path}")
                 image = self._image_interface.load_image(str(thumbnail_path))
                 return image if image and self._image_interface.is_valid_image(image) else None
-            else:
-                print(f"🔍 No cached thumbnail found at: {thumbnail_path}")
             return None
         except Exception as e:
             print(f"Error loading thumbnail from cache: {e}")
@@ -266,17 +257,9 @@ class ThumbnailCache:
                     if age_seconds > max_age_seconds:
                         thumbnail_file.unlink()
                         removed_count += 1
-                        print(
-                            f"🗑️ Removed old cache entry: {thumbnail_file.name} (age: {age_seconds / (24 * 60 * 60):.1f} days)",
-                        )
 
                 except Exception as e:
                     print(f"Warning: Could not process cache file {thumbnail_file}: {e}")
-
-            if removed_count > 0:
-                print(f"🧹 Cache cleanup: Removed {removed_count} old entries (older than {max_age_days} days)")
-            else:
-                print(f"✅ Cache cleanup: No entries older than {max_age_days} days found")
 
         except Exception as e:
             print(f"Warning: Cache cleanup failed: {e}")
@@ -290,11 +273,8 @@ class ThumbnailCache:
         try:
             if self.cache_dir and self.cache_dir.exists():
                 # Remove all PNG files (thumbnails) but keep metadata
-                removed_count = 0
                 for thumbnail_file in self.cache_dir.glob("*.png"):
                     thumbnail_file.unlink()
-                    removed_count += 1
-                print(f"🧹 Manually cleared {removed_count} thumbnails from cache")
                 return True
             return False
         except Exception as e:
