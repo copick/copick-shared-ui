@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Any, Optional
 from qtpy.QtCore import Qt, Signal
 from qtpy.QtWidgets import QFrame, QLabel, QPushButton, QVBoxLayout, QWidget
 
-from .models import AbstractImageInterface, AbstractThemeInterface
+from ...core.models import AbstractImageInterface, AbstractThemeInterface
 
 if TYPE_CHECKING:
     from copick.models import CopickRun

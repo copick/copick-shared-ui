@@ -1,6 +1,6 @@
 """napari-specific worker implementations using @thread_worker decorator."""
 
-from typing import TYPE_CHECKING, Any, Callable, Optional
+from typing import TYPE_CHECKING, Any, Callable, Optional, Union
 
 try:
     print("🔍 Napari Workers: Importing napari threading components")
@@ -16,10 +16,10 @@ except ImportError as e:
     print("✅ Napari Workers: Will skip napari-specific functionality")
 
 if NAPARI_AVAILABLE:
-    from .base_workers import AbstractThumbnailWorker
+    from .base import AbstractThumbnailWorker
 
 if TYPE_CHECKING:
-    from copick.models import CopickRun
+    from copick.models import CopickRun, CopickTomogram
 
 
 if NAPARI_AVAILABLE:
@@ -30,16 +30,16 @@ if NAPARI_AVAILABLE:
         thumbnail_loaded = Signal(str, object, object)  # thumbnail_id, pixmap, error
 
     class NapariThumbnailWorker(AbstractThumbnailWorker):
-        """napari-specific thumbnail worker using @thread_worker decorator."""
+        """napari-specific thumbnail worker using @thread_worker decorator with unified caching."""
 
         def __init__(
             self,
-            run: "CopickRun",
+            item: Union["CopickRun", "CopickTomogram"],
             thumbnail_id: str,
             callback: Callable[[str, Optional[Any], Optional[str]], None],
             force_regenerate: bool = False,
         ):
-            super().__init__(run, thumbnail_id, callback, force_regenerate)
+            super().__init__(item, thumbnail_id, callback, force_regenerate)
             self._worker_func = None
             self._cancelled = False
 
@@ -62,29 +62,15 @@ if NAPARI_AVAILABLE:
                     return None, "Cancelled"
 
                 try:
-                    print(f"🔍 NapariWorker: Selecting best tomogram for '{self.thumbnail_id}'")
-                    # Select best tomogram
-                    tomogram = self._select_best_tomogram(self.run)
-                    if not tomogram:
-                        print(f"❌ NapariWorker: No tomogram found for '{self.thumbnail_id}'")
-                        return None, "No tomogram found"
+                    # Use unified thumbnail generation with caching
+                    pixmap, error = self.generate_thumbnail_pixmap()
 
-                    print(f"🎨 NapariWorker: Generating thumbnail array for '{self.thumbnail_id}'")
-                    # Generate thumbnail array
-                    thumbnail_array = self._generate_thumbnail_array(tomogram)
-                    if thumbnail_array is None:
-                        print(f"❌ NapariWorker: Failed to generate thumbnail array for '{self.thumbnail_id}'")
-                        return None, "Failed to generate thumbnail"
-
-                    print(f"🖼️ NapariWorker: Converting to pixmap for '{self.thumbnail_id}'")
-                    # Convert to QPixmap
-                    pixmap = self._array_to_pixmap(thumbnail_array)
-                    if pixmap is None:
-                        print(f"❌ NapariWorker: Failed to convert to pixmap for '{self.thumbnail_id}'")
-                        return None, "Failed to convert to pixmap"
-
-                    print(f"✅ NapariWorker: Successfully created thumbnail for '{self.thumbnail_id}'")
-                    return pixmap, None
+                    if error:
+                        print(f"❌ NapariWorker: Error generating thumbnail for '{self.thumbnail_id}': {error}")
+                        return None, error
+                    else:
+                        print(f"✅ NapariWorker: Successfully created thumbnail for '{self.thumbnail_id}'")
+                        return pixmap, None
 
                 except Exception as e:
                     print(f"💥 NapariWorker: Exception in worker for '{self.thumbnail_id}': {e}")
@@ -130,12 +116,32 @@ if NAPARI_AVAILABLE:
 
             self.callback(self.thumbnail_id, None, str(error))
 
+        def _setup_cache_image_interface(self) -> None:
+            """Set up napari-specific image interface for caching."""
+            if self._cache:
+                try:
+                    from ..core.image_interface import QtImageInterface
+
+                    self._cache.set_image_interface(QtImageInterface())
+                except Exception as e:
+                    print(f"Warning: Could not set up napari image interface: {e}")
+
         def _array_to_pixmap(self, array: Any) -> Optional[QPixmap]:
             """Convert numpy array to QPixmap."""
             if not NAPARI_AVAILABLE:
                 return None
 
             try:
+                import numpy as np
+
+                # Ensure array is uint8
+                if array.dtype != np.uint8:
+                    # Normalize to 0-255 range
+                    array_min, array_max = array.min(), array.max()
+                    if array_max > array_min:
+                        array = ((array - array_min) / (array_max - array_min) * 255).astype(np.uint8)
+                    else:
+                        array = np.zeros_like(array, dtype=np.uint8)
 
                 if array.ndim == 2:
                     # Grayscale image
@@ -177,13 +183,13 @@ if NAPARI_AVAILABLE:
 
         def start_thumbnail_worker(
             self,
-            run: "CopickRun",
+            item: Union["CopickRun", "CopickTomogram"],
             thumbnail_id: str,
             callback: Callable[[str, Optional[Any], Optional[str]], None],
             force_regenerate: bool = False,
         ) -> None:
-            """Start a thumbnail loading worker."""
-            worker = NapariThumbnailWorker(run, thumbnail_id, callback, force_regenerate)
+            """Start a thumbnail loading worker for either a run or specific tomogram."""
+            worker = NapariThumbnailWorker(item, thumbnail_id, callback, force_regenerate)
             self._active_workers.append(worker)
             worker.start()
 

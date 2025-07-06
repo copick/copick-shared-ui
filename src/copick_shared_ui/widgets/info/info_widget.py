@@ -16,8 +16,12 @@ from qtpy.QtWidgets import (
     QWidget,
 )
 
-from ...gallery.core.models import AbstractImageInterface, AbstractThemeInterface, AbstractWorkerInterface
-from .models import AbstractInfoSessionInterface
+from ...core.models import (
+    AbstractImageInterface,
+    AbstractInfoSessionInterface,
+    AbstractThemeInterface,
+    AbstractWorkerInterface,
+)
 
 if TYPE_CHECKING:
     from copick.models import CopickRun, CopickTomogram, CopickVoxelSpacing
@@ -765,9 +769,9 @@ class CopickInfoWidget(QWidget):
         if self._is_destroyed:
             return
 
-        # Use the shared worker interface to load thumbnails
+        # Use the shared worker interface to load thumbnails directly from tomogram
         self.worker_interface.start_thumbnail_worker(
-            run=tomogram.voxel_spacing.run,
+            item=tomogram,  # Pass the specific tomogram instead of the run
             thumbnail_id=thumbnail_id,
             callback=self._on_thumbnail_loaded,
             force_regenerate=False,
@@ -960,7 +964,7 @@ class CopickInfoWidget(QWidget):
         portal_url = self.session_interface.get_portal_link(item)
         if portal_url:
             button = QPushButton("🌐 Portal")
-            button.setStyleSheet(self.theme_interface.get_button_stylesheet("accent"))
+            button.setStyleSheet(self.theme_interface.get_button_stylesheet("primary"))
             button.clicked.connect(lambda: self._open_url(portal_url))
             return button
         return None

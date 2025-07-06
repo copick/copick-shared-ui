@@ -10,19 +10,19 @@ try:
 except ImportError:
     QT_AVAILABLE = False
 
-from ..gallery.core.models import (
+from ..core.models import (
     AbstractImageInterface,
     AbstractSessionInterface,
     AbstractThemeInterface,
     AbstractWorkerInterface,
 )
-from ..gallery.theming import (
+from ..theming.colors import get_color_scheme
+from ..theming.styles import (
     generate_button_stylesheet,
     generate_input_stylesheet,
     generate_stylesheet,
 )
-from ..gallery.theming.colors import get_color_scheme
-from ..gallery.workers.napari_workers import NapariWorkerManager
+from ..workers.napari import NapariWorkerManager
 
 if TYPE_CHECKING:
     import napari
@@ -255,7 +255,7 @@ class NapariGalleryIntegration:
 
     def create_gallery_widget(self, parent=None):
         """Create a gallery widget with napari integration."""
-        from ..gallery.core.gallery_widget import CopickGalleryWidget
+        from ..widgets.gallery.gallery_widget import CopickGalleryWidget
 
         return CopickGalleryWidget(
             self.session_interface,

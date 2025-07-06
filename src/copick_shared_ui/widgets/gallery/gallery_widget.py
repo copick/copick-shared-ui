@@ -5,7 +5,12 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional
 from qtpy.QtCore import Qt, Signal, Slot
 from qtpy.QtWidgets import QGridLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QScrollArea, QVBoxLayout, QWidget
 
-from .models import AbstractImageInterface, AbstractSessionInterface, AbstractThemeInterface, AbstractWorkerInterface
+from ...core.models import (
+    AbstractImageInterface,
+    AbstractSessionInterface,
+    AbstractThemeInterface,
+    AbstractWorkerInterface,
+)
 from .run_card import RunCard
 
 if TYPE_CHECKING:

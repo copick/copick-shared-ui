@@ -10,20 +10,20 @@ try:
 except ImportError:
     QT_AVAILABLE = False
 
-from ..gallery.core.models import (
+from ..core.models import (
     AbstractImageInterface,
     AbstractSessionInterface,
     AbstractThemeInterface,
     AbstractWorkerInterface,
 )
-from ..gallery.theming import (
-    detect_theme,
+from ..theming.colors import get_color_scheme
+from ..theming.styles import (
     generate_button_stylesheet,
     generate_input_stylesheet,
     generate_stylesheet,
 )
-from ..gallery.theming.colors import get_color_scheme
-from ..gallery.workers.chimerax_workers import ChimeraXWorkerManager
+from ..theming.theme_detection import detect_theme
+from ..workers.chimerax import ChimeraXWorkerManager
 
 if TYPE_CHECKING:
     from chimerax.core.session import Session
@@ -395,7 +395,7 @@ class ChimeraXGalleryIntegration:
 
     def create_gallery_widget(self, parent=None):
         """Create a gallery widget with ChimeraX integration."""
-        from ..gallery.core.gallery_widget import CopickGalleryWidget
+        from ..widgets.gallery.gallery_widget import CopickGalleryWidget
 
         return CopickGalleryWidget(
             self.session_interface,

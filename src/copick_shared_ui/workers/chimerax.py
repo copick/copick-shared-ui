@@ -1,48 +1,54 @@
 """ChimeraX-specific worker implementations using QRunnable and QThreadPool."""
 
-from typing import TYPE_CHECKING, Any, Callable, Optional
+from typing import TYPE_CHECKING, Any, Callable, Optional, Union
 
 try:
-    from qtpy.QtCore import QObject, QRunnable, QThreadPool, Signal
-    from qtpy.QtGui import QImage, QPixmap
+    from Qt.QtCore import QObject, QRunnable, QThreadPool, Signal
+    from Qt.QtGui import QImage, QPixmap
 
     QT_AVAILABLE = True
 except ImportError:
-    QT_AVAILABLE = False
+    try:
+        from qtpy.QtCore import QObject, QRunnable, QThreadPool, Signal
+        from qtpy.QtGui import QImage, QPixmap
 
-    # Fallback classes
-    class QRunnable:
-        def run(self):
+        QT_AVAILABLE = True
+    except ImportError:
+        QT_AVAILABLE = False
+
+        # Fallback classes
+        class QRunnable:
+            def run(self):
+                pass
+
+        class QThreadPool:
+            def start(self, runnable):
+                pass
+
+            def clear(self):
+                pass
+
+            def waitForDone(self, timeout):
+                pass
+
+        class QObject:
             pass
 
-    class QThreadPool:
-        def start(self, runnable):
-            pass
+        class Signal:
+            def __init__(self, *args):
+                pass
 
-        def clear(self):
-            pass
+            def emit(self, *args):
+                pass
 
-        def waitForDone(self, timeout):
-            pass
-
-    class QObject:
-        pass
-
-    class Signal:
-        def __init__(self, *args):
-            pass
-
-        def emit(self, *args):
-            pass
-
-        def connect(self, func):
-            pass
+            def connect(self, func):
+                pass
 
 
-from .base_workers import AbstractThumbnailWorker
+from .base import AbstractThumbnailWorker
 
 if TYPE_CHECKING:
-    from copick.models import CopickRun
+    from copick.models import CopickRun, CopickTomogram
 
 
 class ChimeraXWorkerSignals(QObject):
@@ -59,12 +65,12 @@ class CompatibleMeta(type(AbstractThumbnailWorker), type(QRunnable)):
 
 
 class ChimeraXThumbnailWorker(AbstractThumbnailWorker, QRunnable, metaclass=CompatibleMeta):
-    """ChimeraX-specific thumbnail worker using QRunnable."""
+    """ChimeraX-specific thumbnail worker using QRunnable with unified caching."""
 
     def __init__(
         self,
         signals: ChimeraXWorkerSignals,
-        run: "CopickRun",
+        item: Union["CopickRun", "CopickTomogram"],
         thumbnail_id: str,
         force_regenerate: bool = False,
     ):
@@ -73,7 +79,7 @@ class ChimeraXThumbnailWorker(AbstractThumbnailWorker, QRunnable, metaclass=Comp
             """Callback that emits signal."""
             self.signals.thumbnail_loaded.emit(tid, pixmap, error)
 
-        AbstractThumbnailWorker.__init__(self, run, thumbnail_id, callback, force_regenerate)
+        AbstractThumbnailWorker.__init__(self, item, thumbnail_id, callback, force_regenerate)
         QRunnable.__init__(self)
         self.signals = signals
         self._cancelled = False
@@ -92,32 +98,39 @@ class ChimeraXThumbnailWorker(AbstractThumbnailWorker, QRunnable, metaclass=Comp
             return
 
         try:
-            # Select best tomogram
-            tomogram = self._select_best_tomogram(self.run)
-            if not tomogram:
-                self.signals.thumbnail_loaded.emit(self.thumbnail_id, None, "No tomogram found")
-                return
-
-            # Generate thumbnail array
-            thumbnail_array = self._generate_thumbnail_array(tomogram)
-            if thumbnail_array is None:
-                self.signals.thumbnail_loaded.emit(self.thumbnail_id, None, "Failed to generate thumbnail")
-                return
-
-            # Convert to QPixmap
-            pixmap = self._array_to_pixmap(thumbnail_array)
-            if pixmap is None:
-                self.signals.thumbnail_loaded.emit(self.thumbnail_id, None, "Failed to convert to pixmap")
-                return
-
-            self.signals.thumbnail_loaded.emit(self.thumbnail_id, pixmap, None)
+            # Use unified thumbnail generation with caching
+            pixmap, error = self.generate_thumbnail_pixmap()
+            self.signals.thumbnail_loaded.emit(self.thumbnail_id, pixmap, error)
 
         except Exception as e:
             self.signals.thumbnail_loaded.emit(self.thumbnail_id, None, str(e))
 
+    def _setup_cache_image_interface(self) -> None:
+        """Set up ChimeraX-specific image interface for caching."""
+        if self._cache:
+            try:
+                from ..core.image_interface import QtImageInterface
+
+                self._cache.set_image_interface(QtImageInterface())
+            except Exception as e:
+                print(f"Warning: Could not set up ChimeraX image interface: {e}")
+
     def _array_to_pixmap(self, array: Any) -> Optional[QPixmap]:
         """Convert numpy array to QPixmap."""
+        if not QT_AVAILABLE:
+            return None
+
         try:
+            import numpy as np
+
+            # Ensure array is uint8
+            if array.dtype != np.uint8:
+                # Normalize to 0-255 range
+                array_min, array_max = array.min(), array.max()
+                if array_max > array_min:
+                    array = ((array - array_min) / (array_max - array_min) * 255).astype(np.uint8)
+                else:
+                    array = np.zeros_like(array, dtype=np.uint8)
 
             if array.ndim == 2:
                 # Grayscale image
@@ -167,20 +180,21 @@ class ChimeraXWorkerManager:
 
     def start_thumbnail_worker(
         self,
-        run: "CopickRun",
+        item: Union["CopickRun", "CopickTomogram"],
         thumbnail_id: str,
         callback: Callable[[str, Optional[Any], Optional[str]], None],
         force_regenerate: bool = False,
     ) -> None:
-        """Start a thumbnail loading worker."""
+        """Start a thumbnail loading worker for either a run or specific tomogram."""
         if not QT_AVAILABLE or not self._thread_pool:
             callback(thumbnail_id, None, "Qt not available")
             return
 
-        # Connect callback to signals
+        # Connect callback to signals (disconnect previous connections to avoid duplicates)
+        self._signals.thumbnail_loaded.disconnect()
         self._signals.thumbnail_loaded.connect(callback)
 
-        worker = ChimeraXThumbnailWorker(self._signals, run, thumbnail_id, force_regenerate)
+        worker = ChimeraXThumbnailWorker(self._signals, item, thumbnail_id, force_regenerate)
         self._active_workers.append(worker)
         self._thread_pool.start(worker)
 

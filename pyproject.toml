@@ -98,6 +98,7 @@ ignore = [
     "W293",   # blank line contains whitespace
     "B008",   # Do not perform calls in argument defaults
     "B905",   # `zip()` without an explicit `strict=` parameter
+    "F401",   # module imported but unused
     "N802",   # Function name should be lowercase
     "N805",   # First argument of a method should be named `self`
     "N806",   # Variable in function should be lowercase
