@@ -1,7 +1,6 @@
 """
 Validation utilities for copick entity names using copick.util.escape rules
 """
-
 import re
 from typing import Tuple
 

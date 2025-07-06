@@ -2,7 +2,7 @@
 
 Shared UI components for copick visualization plugins.
 
-This package provides reusable Qt-based UI components that can be used across different copick visualization plugins
+This package provides reusable Qt-based UI components that can be used across different copick visualization plugins 
 (napari-copick, chimerax-copick, etc.).
 
 ## Installation

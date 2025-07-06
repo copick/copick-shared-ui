@@ -471,7 +471,7 @@ class EditObjectTypesDialog(QDialog):
         """Update button states based on current state"""
         has_selection = len(self._objects_table.selectionModel().selectedRows()) > 0
         form_valid = self._is_form_valid()
-
+        
         self._edit_button.setEnabled(has_selection and not self._editing_mode)
         self._delete_button.setEnabled(has_selection and not self._editing_mode)
         self._new_button.setEnabled(not self._editing_mode)
@@ -522,7 +522,7 @@ class EditObjectTypesDialog(QDialog):
                 self._populate_objects_table()
                 self._reset_form()
                 self._update_button_states()
-
+                
                 # Show feedback and enable OK button
                 self._form_status.setText(f"✅ Object '{deleted_name}' deleted successfully")
                 self._form_status.setStyleSheet("font-weight: bold; color: #28a745; padding: 5px;")
@@ -541,7 +541,7 @@ class EditObjectTypesDialog(QDialog):
                     QPushButton:hover {
                         background-color: #218838;
                     }
-                """,
+                """
                 )
 
     def _new_object(self):
@@ -576,11 +576,11 @@ class EditObjectTypesDialog(QDialog):
         self._populate_objects_table()
         self._reset_form()
         self._update_button_states()
-
+        
         # Provide immediate visual feedback
         self._form_status.setText(f"✅ Object '{object_name}' {action} successfully")
         self._form_status.setStyleSheet("font-weight: bold; color: #28a745; padding: 5px;")
-
+        
         # Enable the OK button to indicate changes are ready to be saved
         self._ok_button.setEnabled(True)
         self._ok_button.setStyleSheet(
@@ -597,7 +597,7 @@ class EditObjectTypesDialog(QDialog):
             QPushButton:hover {
                 background-color: #218838;
             }
-        """,
+        """
         )
 
     def _cancel_edit(self):
