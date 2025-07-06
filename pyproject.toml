@@ -26,7 +26,7 @@ dynamic = ["version"]
 dependencies = [
     "qtpy",
     "pydantic>=2",
-    "copick@git+https://github.com/copick/copick.git@de80ec0",
+    "copick>=1.5.0",
 ]
 authors = [
     {name = "Utz H. Ermel", email = "utz@ermel.me"},
