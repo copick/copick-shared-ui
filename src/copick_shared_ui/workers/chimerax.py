@@ -191,7 +191,11 @@ class ChimeraXWorkerManager:
             return
 
         # Connect callback to signals (disconnect previous connections to avoid duplicates)
-        self._signals.thumbnail_loaded.disconnect()
+        try:  # noqa: SIM105
+            self._signals.thumbnail_loaded.disconnect()
+        except (RuntimeError, TypeError):
+            # No connections to disconnect, which is fine
+            pass
         self._signals.thumbnail_loaded.connect(callback)
 
         worker = ChimeraXThumbnailWorker(self._signals, item, thumbnail_id, force_regenerate)
