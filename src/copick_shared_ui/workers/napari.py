@@ -17,6 +17,7 @@ except ImportError as e:
 
 if NAPARI_AVAILABLE:
     from .base import AbstractThumbnailWorker
+    from .data_worker import AbstractDataWorker
 
 if TYPE_CHECKING:
     from copick.models import CopickRun, CopickTomogram
@@ -28,6 +29,7 @@ if NAPARI_AVAILABLE:
         """napari-specific worker signals."""
 
         thumbnail_loaded = Signal(str, object, object)  # thumbnail_id, pixmap, error
+        data_loaded = Signal(str, object, object)  # data_type, data, error
 
     class NapariThumbnailWorker(AbstractThumbnailWorker):
         """napari-specific thumbnail worker using @thread_worker decorator with unified caching."""
@@ -175,8 +177,115 @@ if NAPARI_AVAILABLE:
                 print(f"Error converting array to pixmap: {e}")
                 return None
 
+    class NapariDataWorker(AbstractDataWorker):
+        """napari-specific data worker using @thread_worker decorator."""
+
+        def __init__(
+            self,
+            run: "CopickRun",
+            data_type: str,
+            callback: Callable[[str, Optional[Any], Optional[str]], None],
+        ):
+            super().__init__(run, data_type, callback)
+            self._worker_func = None
+
+        def start(self) -> None:
+            """Start the data loading work using napari's thread_worker."""
+            print(f"🚀 NapariDataWorker: Starting data loading for '{self.data_type}'")
+
+            if not NAPARI_AVAILABLE:
+                print(f"❌ NapariDataWorker: napari not available for '{self.data_type}'")
+                self.callback(self.data_type, None, "napari not available")
+                return
+
+            # Capture variables for the worker function
+            worker_run = self.run
+            worker_data_type = self.data_type
+            worker_cancelled = lambda: self._cancelled  # noqa: E731
+
+            # Create the worker function
+            @thread_worker
+            def load_data():
+                print(f"🔧 NapariDataWorker: Inside thread_worker for '{worker_data_type}'")
+
+                if worker_cancelled():
+                    print(f"⚠️ NapariDataWorker: Cancelled '{worker_data_type}'")
+                    return None, "Cancelled"
+
+                try:
+                    # Use base class data loading logic directly
+                    print(f"🔍 Loading {worker_data_type} for run '{worker_run.name}'")
+
+                    if worker_data_type == "voxel_spacings":
+                        data = list(worker_run.voxel_spacings)
+                    elif worker_data_type == "tomograms":
+                        tomograms = []
+                        for vs in worker_run.voxel_spacings:
+                            if worker_cancelled():
+                                return None, "Cancelled"
+                            tomograms.extend(list(vs.tomograms))
+                        data = tomograms
+                    elif worker_data_type == "picks":
+                        data = list(worker_run.picks)
+                    elif worker_data_type == "meshes":
+                        data = list(worker_run.meshes)
+                    elif worker_data_type == "segmentations":
+                        data = list(worker_run.segmentations)
+                    else:
+                        return None, f"Unknown data type: {worker_data_type}"
+
+                    if worker_cancelled():
+                        return None, "Cancelled"
+
+                    print(f"✅ NapariDataWorker: Successfully loaded {len(data)} {worker_data_type} items")
+                    return data, None
+
+                except Exception as e:
+                    print(f"💥 NapariDataWorker: Exception loading '{worker_data_type}': {e}")
+                    import traceback
+
+                    traceback.print_exc()
+                    return None, str(e)
+
+            # Connect worker signals
+            print(f"🔗 NapariDataWorker: Creating and connecting worker for '{self.data_type}'")
+            worker = load_data()
+            worker.returned.connect(self._on_worker_finished)
+            worker.errored.connect(self._on_worker_error)
+
+            # Store reference to worker
+            self._worker_func = worker
+            print(f"📦 NapariDataWorker: Worker stored for '{self.data_type}'")
+
+            # Actually start the worker!
+            print(f"▶️ NapariDataWorker: Starting worker execution for '{self.data_type}'")
+            worker.start()
+
+        def cancel(self) -> None:
+            """Cancel the data loading work."""
+            self._cancelled = True
+            if self._worker_func:
+                # napari workers don't have a direct cancel method
+                # We rely on the _cancelled flag check
+                pass
+
+        def _on_worker_finished(self, result):
+            """Handle worker completion."""
+            if self._cancelled:
+                return
+
+            data, error = result
+            self.callback(self.data_type, data, error)
+
+        def _on_worker_error(self, error):
+            """Handle worker error."""
+            if self._cancelled:
+                return
+
+            self.callback(self.data_type, None, str(error))
+
     class NapariWorkerManager:
-        """Manages napari thumbnail workers."""
+        """Manages napari thumbnail and data workers."""
 
         def __init__(self):
             self._active_workers = []
@@ -190,6 +299,17 @@ if NAPARI_AVAILABLE:
         ) -> None:
             """Start a thumbnail loading worker for either a run or specific tomogram."""
             worker = NapariThumbnailWorker(item, thumbnail_id, callback, force_regenerate)
+            self._active_workers.append(worker)
+            worker.start()
+
+        def start_data_worker(
+            self,
+            run: "CopickRun",
+            data_type: str,
+            callback: Callable[[str, Optional[Any], Optional[str]], None],
+        ) -> None:
+            """Start a data loading worker for the specified data type."""
+            worker = NapariDataWorker(run, data_type, callback)
             self._active_workers.append(worker)
             worker.start()
 

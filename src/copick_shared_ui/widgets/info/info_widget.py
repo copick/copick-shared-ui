@@ -252,41 +252,38 @@ class CopickInfoWidget(QWidget):
 
     def _start_data_loading_worker(self, data_type: str) -> None:
         """Start a data loading worker for the specified data type."""
-        # This would be implemented by platform-specific subclasses
-        # For now, simulate immediate loading
-        try:
-            if data_type == "voxel_spacings":
-                data = list(self.current_run.voxel_spacings)
-            elif data_type == "tomograms":
-                tomograms = []
-                for vs in self.current_run.voxel_spacings:
-                    tomograms.extend(list(vs.tomograms))
-                data = tomograms
-            elif data_type == "picks":
-                data = list(self.current_run.picks)
-            elif data_type == "meshes":
-                data = list(self.current_run.meshes)
-            elif data_type == "segmentations":
-                data = list(self.current_run.segmentations)
-            else:
-                data = []
+        if not self.current_run or self._is_destroyed:
+            return
 
-            self._handle_data_loaded(data_type, data, None)
-        except Exception as e:
-            self._handle_data_loaded(data_type, None, str(e))
+        print(f"🚀 InfoWidget: Starting threaded data loading for '{data_type}'")
+
+        # Use the worker interface to start threaded data loading
+        self.worker_interface.start_data_worker(
+            run=self.current_run,
+            data_type=data_type,
+            callback=self._handle_data_loaded,
+        )
 
     def _handle_data_loaded(self, data_type: str, data: Optional[List[Any]], error: Optional[str]) -> None:
         """Handle data loading completion."""
+        print(
+            f"📥 InfoWidget: _handle_data_loaded called for '{data_type}' - error: {error}, data count: {len(data) if data else 0}",
+        )
+
         if self._is_destroyed:
+            print(f"⚠️ InfoWidget: Widget destroyed, ignoring data for '{data_type}'")
             return
 
         if error:
+            print(f"❌ InfoWidget: Error loading '{data_type}': {error}")
             self._loading_states[data_type] = f"error: {error}"
         else:
+            print(f"✅ InfoWidget: Successfully loaded {len(data) if data else 0} '{data_type}' items")
             self._loading_states[data_type] = "loaded"
             self._loaded_data[data_type] = data or []
 
         # Update display
+        print(f"🔄 InfoWidget: Calling _update_display for '{data_type}'")
         self._update_display()
 
     @Slot()

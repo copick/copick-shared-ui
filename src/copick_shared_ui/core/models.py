@@ -129,6 +129,16 @@ class AbstractWorkerInterface(ABC):
         pass
 
     @abstractmethod
+    def start_data_worker(
+        self,
+        run: "CopickRun",
+        data_type: str,
+        callback: Callable[[str, Optional[Any], Optional[str]], None],
+    ) -> None:
+        """Start a data loading worker for the specified data type."""
+        pass
+
+    @abstractmethod
     def clear_workers(self) -> None:
         """Clear all pending workers."""
         pass

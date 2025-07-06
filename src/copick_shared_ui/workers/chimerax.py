@@ -46,6 +46,7 @@ except ImportError:
 
 
 from .base import AbstractThumbnailWorker
+from .data_worker import AbstractDataWorker
 
 if TYPE_CHECKING:
     from copick.models import CopickRun, CopickTomogram
@@ -55,11 +56,18 @@ class ChimeraXWorkerSignals(QObject):
     """ChimeraX-specific worker signals."""
 
     thumbnail_loaded = Signal(str, object, object)  # thumbnail_id, pixmap, error
+    data_loaded = Signal(str, object, object)  # data_type, data, error
 
 
 # Create a compatible metaclass to resolve QRunnable + ABC metaclass conflict
 class CompatibleMeta(type(AbstractThumbnailWorker), type(QRunnable)):
     """Metaclass that resolves conflicts between ABC and Qt metaclasses."""
+
+    pass
+
+
+class CompatibleDataMeta(type(AbstractDataWorker), type(QRunnable)):
+    """Metaclass that resolves conflicts between ABC and Qt metaclasses for data workers."""
 
     pass
 
@@ -165,8 +173,48 @@ class ChimeraXThumbnailWorker(AbstractThumbnailWorker, QRunnable, metaclass=Comp
             return None
 
 
+class ChimeraXDataWorker(AbstractDataWorker, QRunnable, metaclass=CompatibleDataMeta):
+    """ChimeraX-specific data worker using QRunnable."""
+
+    def __init__(
+        self,
+        signals: ChimeraXWorkerSignals,
+        run: "CopickRun",
+        data_type: str,
+    ):
+        # Initialize AbstractDataWorker first with a callback that uses signals
+        def callback(dtype: str, data: Optional[Any], error: Optional[str]) -> None:
+            """Callback that emits signal."""
+            self.signals.data_loaded.emit(dtype, data, error)
+
+        AbstractDataWorker.__init__(self, run, data_type, callback)
+        QRunnable.__init__(self)
+        self.signals = signals
+
+    def start(self) -> None:
+        """Start method for compatibility - actual start is via QThreadPool."""
+        pass
+
+    def cancel(self) -> None:
+        """Cancel the data loading work."""
+        self._cancelled = True
+
+    def run(self) -> None:
+        """Run method called by QThreadPool."""
+        if self._cancelled:
+            return
+
+        try:
+            # Use base class data loading logic
+            data, error = self.load_data()
+            self.signals.data_loaded.emit(self.data_type, data, error)
+
+        except Exception as e:
+            self.signals.data_loaded.emit(self.data_type, None, str(e))
+
+
 class ChimeraXWorkerManager:
-    """Manages ChimeraX thumbnail workers using QThreadPool."""
+    """Manages ChimeraX thumbnail and data workers using QThreadPool."""
 
     def __init__(self):
         if QT_AVAILABLE:
@@ -190,15 +238,30 @@ class ChimeraXWorkerManager:
             callback(thumbnail_id, None, "Qt not available")
             return
 
-        # Connect callback to signals (disconnect previous connections to avoid duplicates)
-        try:  # noqa: SIM105
-            self._signals.thumbnail_loaded.disconnect()
-        except (RuntimeError, TypeError):
-            # No connections to disconnect, which is fine
-            pass
-        self._signals.thumbnail_loaded.connect(callback)
+        # Create unique signals for each worker to avoid callback conflicts
+        worker_signals = ChimeraXWorkerSignals()
+        worker_signals.thumbnail_loaded.connect(callback)
 
-        worker = ChimeraXThumbnailWorker(self._signals, item, thumbnail_id, force_regenerate)
+        worker = ChimeraXThumbnailWorker(worker_signals, item, thumbnail_id, force_regenerate)
+        self._active_workers.append(worker)
+        self._thread_pool.start(worker)
+
+    def start_data_worker(
+        self,
+        run: "CopickRun",
+        data_type: str,
+        callback: Callable[[str, Optional[Any], Optional[str]], None],
+    ) -> None:
+        """Start a data loading worker for the specified data type."""
+        if not QT_AVAILABLE or not self._thread_pool:
+            callback(data_type, None, "Qt not available")
+            return
+
+        # Create unique signals for each worker to avoid callback conflicts
+        worker_signals = ChimeraXWorkerSignals()
+        worker_signals.data_loaded.connect(callback)
+
+        worker = ChimeraXDataWorker(worker_signals, run, data_type)
         self._active_workers.append(worker)
         self._thread_pool.start(worker)
 

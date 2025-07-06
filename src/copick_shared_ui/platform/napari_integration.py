@@ -1,6 +1,6 @@
 """napari-specific integration for gallery widget."""
 
-from typing import TYPE_CHECKING, Any, Callable, Dict, Optional
+from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Union
 
 try:
     from qtpy.QtCore import Qt
@@ -136,13 +136,22 @@ class NapariWorkerInterface(AbstractWorkerInterface):
 
     def start_thumbnail_worker(
         self,
-        run: "CopickRun",
+        item: Union["CopickRun", "CopickTomogram"],
         thumbnail_id: str,
         callback: Callable[[str, Optional[Any], Optional[str]], None],
         force_regenerate: bool = False,
     ) -> None:
         """Start a thumbnail loading worker."""
-        self._manager.start_thumbnail_worker(run, thumbnail_id, callback, force_regenerate)
+        self._manager.start_thumbnail_worker(item, thumbnail_id, callback, force_regenerate)
+
+    def start_data_worker(
+        self,
+        run: "CopickRun",
+        data_type: str,
+        callback: Callable[[str, Optional[Any], Optional[str]], None],
+    ) -> None:
+        """Start a data loading worker for the specified data type."""
+        self._manager.start_data_worker(run, data_type, callback)
 
     def clear_workers(self) -> None:
         """Clear all pending workers."""
