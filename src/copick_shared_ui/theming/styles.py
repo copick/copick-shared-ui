@@ -1,6 +1,6 @@
 """Stylesheet generation for gallery theming."""
 
-from .colors import get_color_scheme
+from copick_shared_ui.theming.colors import get_color_scheme
 
 
 def generate_stylesheet(theme: str) -> str:

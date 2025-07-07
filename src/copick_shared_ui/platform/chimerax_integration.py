@@ -10,20 +10,20 @@ try:
 except ImportError:
     QT_AVAILABLE = False
 
-from ..core.models import (
+from copick_shared_ui.core.models import (
     AbstractImageInterface,
     AbstractSessionInterface,
     AbstractThemeInterface,
     AbstractWorkerInterface,
 )
-from ..theming.colors import get_color_scheme
-from ..theming.styles import (
+from copick_shared_ui.theming.colors import get_color_scheme
+from copick_shared_ui.theming.styles import (
     generate_button_stylesheet,
     generate_input_stylesheet,
     generate_stylesheet,
 )
-from ..theming.theme_detection import detect_theme
-from ..workers.chimerax import ChimeraXWorkerManager
+from copick_shared_ui.theming.theme_detection import detect_theme
+from copick_shared_ui.workers.chimerax import ChimeraXWorkerManager
 
 if TYPE_CHECKING:
     from chimerax.core.session import Session
@@ -244,22 +244,35 @@ class ChimeraXThemeInterface(AbstractThemeInterface):
 
     def __init__(self):
         self._current_theme = detect_theme()
+        # Cache theme-dependent data to avoid repeated expensive calls
+        self._cached_colors = None
+        self._cached_stylesheet = None
+        self._cached_button_stylesheets = {}
+        self._cached_input_stylesheet = None
 
     def get_theme_colors(self) -> Dict[str, str]:
-        """Get color scheme for current theme."""
-        return get_color_scheme(self._current_theme)
+        """Get color scheme for current theme (cached)."""
+        if self._cached_colors is None:
+            self._cached_colors = get_color_scheme(self._current_theme)
+        return self._cached_colors
 
     def get_theme_stylesheet(self) -> str:
-        """Get base stylesheet for current theme."""
-        return generate_stylesheet(self._current_theme)
+        """Get base stylesheet for current theme (cached)."""
+        if self._cached_stylesheet is None:
+            self._cached_stylesheet = generate_stylesheet(self._current_theme)
+        return self._cached_stylesheet
 
     def get_button_stylesheet(self, button_type: str = "primary") -> str:
-        """Get button stylesheet for current theme."""
-        return generate_button_stylesheet(button_type, self._current_theme)
+        """Get button stylesheet for current theme (cached)."""
+        if button_type not in self._cached_button_stylesheets:
+            self._cached_button_stylesheets[button_type] = generate_button_stylesheet(button_type, self._current_theme)
+        return self._cached_button_stylesheets[button_type]
 
     def get_input_stylesheet(self) -> str:
-        """Get input field stylesheet for current theme."""
-        return generate_input_stylesheet(self._current_theme)
+        """Get input field stylesheet for current theme (cached)."""
+        if self._cached_input_stylesheet is None:
+            self._cached_input_stylesheet = generate_input_stylesheet(self._current_theme)
+        return self._cached_input_stylesheet
 
     def connect_theme_changed(self, callback: Callable[[], None]) -> None:
         """Connect to theme change events."""
@@ -272,7 +285,10 @@ class ChimeraXWorkerInterface(AbstractWorkerInterface):
     """ChimeraX-specific worker interface."""
 
     def __init__(self):
-        self._manager = ChimeraXWorkerManager()
+        self._manager = ChimeraXWorkerManager()  # Uses default of 4 workers
+        print(
+            "🔧 ChimeraX Worker Manager initialized with max_concurrent_workers=4 (reduced from 16 to prevent blocking)",
+        )
 
     def start_thumbnail_worker(
         self,
@@ -343,7 +359,7 @@ class ChimeraXImageInterface(AbstractImageInterface):
             print(f"Error creating pixmap from array: {e}")
             return None
 
-    def scale_pixmap(self, pixmap: Any, size: tuple, smooth: bool = True) -> Any:
+    def scale_pixmap(self, pixmap: Any, size: tuple, smooth: bool = False) -> Any:
         """Scale a QPixmap to the specified size."""
         if not QT_AVAILABLE or not pixmap:
             return pixmap
@@ -404,7 +420,7 @@ class ChimeraXGalleryIntegration:
 
     def create_gallery_widget(self, parent=None):
         """Create a gallery widget with ChimeraX integration."""
-        from ..widgets.gallery.gallery_widget import CopickGalleryWidget
+        from copick_shared_ui.widgets.gallery.gallery_widget import CopickGalleryWidget
 
         return CopickGalleryWidget(
             self.session_interface,

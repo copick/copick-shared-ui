@@ -29,6 +29,7 @@ dependencies = [
     "copick[all]>=1.5.0",
     "zarr<3",
     "numpy>=1.21.0",
+    "superqt"
 ]
 authors = [
     {name = "Utz H. Ermel", email = "utz@ermel.me"},

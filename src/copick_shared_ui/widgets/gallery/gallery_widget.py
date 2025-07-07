@@ -1,17 +1,19 @@
 """Platform-agnostic gallery widget for displaying copick runs."""
 
+import logging
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from qtpy.QtCore import Qt, Signal, Slot
 from qtpy.QtWidgets import QGridLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QScrollArea, QVBoxLayout, QWidget
 
-from ...core.models import (
+from copick_shared_ui.core.models import (
     AbstractImageInterface,
     AbstractSessionInterface,
     AbstractThemeInterface,
     AbstractWorkerInterface,
 )
-from .run_card import RunCard
+from copick_shared_ui.widgets.gallery.run_card import RunCard
 
 if TYPE_CHECKING:
     from copick.models import CopickRun
@@ -222,11 +224,12 @@ class CopickGalleryWidget(QWidget):
                 card.info_requested.connect(self._on_run_info_requested)
                 self.all_run_cards[run.name] = card
 
-                # Check if we have a cached thumbnail
+                # Check if we have a cached thumbnail in memory first
                 if run.name in self.thumbnail_cache:
-                    card.set_thumbnail(self.thumbnail_cache[run.name])
+                    cached_thumbnail = self.thumbnail_cache[run.name]
+                    card.set_thumbnail(cached_thumbnail)
                 else:
-                    # Start thumbnail loading
+                    # Start thumbnail loading - let the worker check disk cache
                     self._load_run_thumbnail(run, run.name)
 
             # Add to visible cards and grid layout
@@ -241,14 +244,13 @@ class CopickGalleryWidget(QWidget):
         if self._is_destroyed:
             return
 
+        # Skip expensive tomogram count logging to prevent UI blocking with large datasets
         self.worker_interface.start_thumbnail_worker(run, thumbnail_id, self._on_thumbnail_loaded, force_regenerate)
 
     def _on_thumbnail_loaded(self, thumbnail_id: str, pixmap: Optional[Any], error: Optional[str]) -> None:
         """Handle thumbnail loading completion."""
+
         if self._is_destroyed or thumbnail_id not in self.all_run_cards:
-            print(
-                f"⚠️ Gallery: Thumbnail callback for '{thumbnail_id}' ignored (destroyed={self._is_destroyed}, card_exists={thumbnail_id in self.all_run_cards})",
-            )
             return
 
         card = self.all_run_cards[thumbnail_id]
@@ -271,8 +273,7 @@ class CopickGalleryWidget(QWidget):
             # Emit signal for handling tomogram loading
             self.run_selected.emit(run)
 
-        except Exception as e:
-            print(f"Gallery: Error handling run card click: {e}")
+        except Exception:
             # Still emit the signal as fallback
             self.run_selected.emit(run)
 

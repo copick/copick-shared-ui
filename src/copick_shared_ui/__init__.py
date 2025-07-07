@@ -3,7 +3,7 @@
 __version__ = "0.1.1"
 
 # Core components
-from .core import (
+from copick_shared_ui.core import (
     AbstractImageInterface,
     AbstractInfoSessionInterface,
     AbstractSessionInterface,
@@ -15,10 +15,10 @@ from .core import (
 )
 
 # UI components
-from .ui.edit_object_types_dialog import ColorButton, EditObjectTypesDialog
+from copick_shared_ui.ui.edit_object_types_dialog import ColorButton, EditObjectTypesDialog
 
 # Utilities
-from .util.validation import generate_smart_copy_name, get_invalid_characters, validate_copick_name
+from copick_shared_ui.util.validation import generate_smart_copy_name, get_invalid_characters, validate_copick_name
 
 __all__ = [
     # Core interfaces and caching

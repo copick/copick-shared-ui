@@ -2,7 +2,7 @@
 
 from typing import Any, Optional
 
-from .thumbnail_cache import ImageInterface
+from copick_shared_ui.core.thumbnail_cache import ImageInterface
 
 
 class QtImageInterface(ImageInterface):
@@ -30,6 +30,7 @@ class QtImageInterface(ImageInterface):
                 self._QPixmap = QPixmap
                 self._qt_available = True
             except ImportError:
+                print("❌ No Qt interface available")
                 self._qt_available = False
 
     def save_image(self, image: Any, path: str, format: str = "PNG") -> bool:
@@ -43,14 +44,24 @@ class QtImageInterface(ImageInterface):
         Returns:
             True if successful, False otherwise
         """
-        if not self._qt_available or not image:
+        if not self._qt_available:
+            print("❌ Qt not available for save operation")
+            return False
+
+        if not image:
+            print("❌ No image provided for save operation")
             return False
 
         try:
             # QPixmap has a save method
-            return image.save(path, format)
+            result = image.save(path, format)
+
+            return result
         except Exception as e:
-            print(f"Error saving image: {e}")
+            print(f"❌ Error saving image: {e}")
+            import traceback
+
+            print(f"❌ Stack trace: {traceback.format_exc()}")
             return False
 
     def load_image(self, path: str) -> Optional[Any]:
@@ -63,13 +74,24 @@ class QtImageInterface(ImageInterface):
             QPixmap object if successful, None otherwise
         """
         if not self._qt_available:
+            print("❌ Qt not available for load operation")
             return None
 
         try:
+            from pathlib import Path
+
             pixmap = self._QPixmap(path)
-            return pixmap if not pixmap.isNull() else None
+
+            if pixmap:
+                is_null = pixmap.isNull()
+                return pixmap if not is_null else None
+            else:
+                return None
         except Exception as e:
-            print(f"Error loading image: {e}")
+            print(f"❌ Error loading image: {e}")
+            import traceback
+
+            print(f"❌ Stack trace: {traceback.format_exc()}")
             return None
 
     def is_valid_image(self, image: Any) -> bool:
@@ -81,13 +103,21 @@ class QtImageInterface(ImageInterface):
         Returns:
             True if valid, False otherwise
         """
-        if not self._qt_available or not image:
+        if not self._qt_available:
+            print("❌ Qt not available for validation")
+            return False
+
+        if not image:
+            print("❌ No image provided for validation")
             return False
 
         try:
             # QPixmap has isNull method
-            return not image.isNull()
-        except Exception:
+            is_null = image.isNull()
+            is_valid = not is_null
+            return is_valid
+        except Exception as e:
+            print(f"❌ Error validating image: {e}")
             return False
 
 

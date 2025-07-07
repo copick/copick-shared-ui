@@ -16,7 +16,7 @@ from qtpy.QtWidgets import (
     QWidget,
 )
 
-from ...core.models import (
+from copick_shared_ui.core.models import (
     AbstractImageInterface,
     AbstractInfoSessionInterface,
     AbstractThemeInterface,
@@ -697,7 +697,7 @@ class CopickInfoWidget(QWidget):
             # Use cached thumbnail
             pixmap = self._thumbnails[thumbnail_id]
             max_size = min(card.minimumSize().width() - 40, card.minimumSize().height() - 80)
-            scaled_pixmap = self.image_interface.scale_pixmap(pixmap, (max_size, max_size), smooth=True)
+            scaled_pixmap = self.image_interface.scale_pixmap(pixmap, (max_size, max_size), smooth=False)
             thumbnail_label.setPixmap(scaled_pixmap)
         else:
             # Show loading placeholder and start async loading
@@ -790,7 +790,7 @@ class CopickInfoWidget(QWidget):
                                 scaled_pixmap = self.image_interface.scale_pixmap(
                                     pixmap,
                                     (max_size, max_size),
-                                    smooth=True,
+                                    smooth=False,
                                 )
                                 thumbnail_label.setPixmap(scaled_pixmap)
                     else:

@@ -31,13 +31,13 @@ class AbstractThumbnailWorker(ABC):
         self._setup_cache()
 
     def _setup_cache(self) -> None:
-        """Set up thumbnail cache for this worker."""
+        """Set up thumbnail cache interface only - defer all disk I/O until worker runs."""
         try:
-            from ..core.thumbnail_cache import get_global_cache
+            from copick_shared_ui.core.thumbnail_cache import get_global_cache
 
             self._cache = get_global_cache()
 
-            # Create cache key based on item type
+            # For tomograms, we can safely create cache key without disk I/O
             if self._is_tomogram():
                 tomogram = self.item
                 run_name = tomogram.voxel_spacing.run.name
@@ -47,9 +47,9 @@ class AbstractThumbnailWorker(ABC):
                     voxel_spacing=tomogram.voxel_spacing.voxel_size,
                 )
             else:
-                # For runs, we'll create cache key once we know the best tomogram
-                run = self.item
-                self._cache_key = self._cache.get_cache_key(run_name=run.name)
+                # For runs, defer cache key creation until worker runs
+                # This avoids any potential disk I/O during construction
+                self._cache_key = None  # Will be set when worker runs
 
         except Exception as e:
             print(f"Warning: Could not set up thumbnail cache: {e}")
@@ -130,13 +130,7 @@ class AbstractThumbnailWorker(ABC):
 
     def generate_thumbnail_pixmap(self) -> tuple[Optional[Any], Optional[str]]:
         """Generate thumbnail pixmap from the item (run or tomogram). Returns (pixmap, error)."""
-        # Check cache first (if not force regenerating)
-        if not self.force_regenerate and self._cache and self._cache_key and self._cache.has_thumbnail(self._cache_key):
-            cached_pixmap = self._cache.load_thumbnail(self._cache_key)
-            if cached_pixmap is not None:
-                return cached_pixmap, None
-
-        # Determine the tomogram to use
+        # Determine the tomogram to use and generate proper cache key
         if self._is_tomogram():
             tomogram = self.item
             # Update cache key with specific tomogram info
@@ -148,11 +142,56 @@ class AbstractThumbnailWorker(ABC):
                     voxel_spacing=tomogram.voxel_spacing.voxel_size,
                 )
         else:
-            # Item is a run, select best tomogram
+            # Item is a run - check if we have cached best tomogram info first
             run = self.item
-            tomogram = self._select_best_tomogram(run)
-            if not tomogram:
-                return None, "No suitable tomogram found in run"
+            tomogram = None
+
+            if not self.force_regenerate and self._cache and self._cache.has_best_tomogram_info(run.name):
+                # Use cached best tomogram info to avoid expensive determination
+                best_info = self._cache.load_best_tomogram_info(run.name)
+                if best_info:
+                    # Use the cache key from the stored info (human-readable)
+                    self._cache_key = best_info.get("cache_key")
+                    if not self._cache_key:
+                        # Fallback: generate cache key from cached info (for older cache entries)
+                        self._cache_key = self._cache.get_cache_key(
+                            run_name=run.name,
+                            tomogram_type=best_info["tomogram_type"],
+                            voxel_spacing=best_info["voxel_spacing"],
+                        )
+
+                    # Check if thumbnail exists with this cache key
+                    if self._cache.has_thumbnail(self._cache_key):
+                        cached_pixmap = self._cache.load_thumbnail(self._cache_key)
+                        if cached_pixmap is not None:
+                            return cached_pixmap, None
+
+                    # Find the specific tomogram matching the cached info
+                    for tomo in run.tomograms:
+                        try:
+                            if (
+                                tomo.tomo_type == best_info["tomogram_type"]
+                                and abs(tomo.voxel_spacing.voxel_size - best_info["voxel_spacing"]) < 0.001
+                            ):
+                                tomogram = tomo
+                                break
+                        except Exception as e:
+                            print(f"⚠️ Error checking tomogram: {e}")
+                            continue
+
+            # If no cached best tomogram info or force regenerating, select best tomogram
+            if tomogram is None:
+                tomogram = self._select_best_tomogram(run)
+                if not tomogram:
+                    return None, "No suitable tomogram found in run"
+
+                # Save the best tomogram selection to cache for future use
+                if self._cache:
+                    self._cache.save_best_tomogram_info(
+                        run_name=run.name,
+                        tomogram_type=tomogram.tomo_type,
+                        voxel_spacing=tomogram.voxel_spacing.voxel_size,
+                    )
 
             # Update cache key with selected tomogram info
             if self._cache:
@@ -161,6 +200,12 @@ class AbstractThumbnailWorker(ABC):
                     tomogram_type=tomogram.tomo_type,
                     voxel_spacing=tomogram.voxel_spacing.voxel_size,
                 )
+
+        # Check cache one more time with the proper cache key (if not force regenerating)
+        if not self.force_regenerate and self._cache and self._cache_key and self._cache.has_thumbnail(self._cache_key):
+            cached_pixmap = self._cache.load_thumbnail(self._cache_key)
+            if cached_pixmap is not None:
+                return cached_pixmap, None
 
         # Generate thumbnail array
         thumbnail_array = self._generate_thumbnail_array(tomogram)
@@ -175,9 +220,14 @@ class AbstractThumbnailWorker(ABC):
         # Cache the result
         if self._cache and self._cache_key:
             try:
-                _ = self._cache.save_thumbnail(self._cache_key, pixmap)
+                self._cache.save_thumbnail(self._cache_key, pixmap)
             except Exception as e:
                 print(f"⚠️ Error caching thumbnail: {e}")
+                import traceback
+
+                traceback.print_exc()
+        else:
+            print(f"❌ Worker: Cannot cache - cache: {self._cache is not None}, cache_key: {self._cache_key}")
 
         return pixmap, None
 

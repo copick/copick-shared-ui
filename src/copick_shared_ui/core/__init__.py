@@ -1,13 +1,13 @@
 """Core shared components for copick UI."""
 
-from .models import (
+from copick_shared_ui.core.models import (
     AbstractImageInterface,
     AbstractInfoSessionInterface,
     AbstractSessionInterface,
     AbstractThemeInterface,
     AbstractWorkerInterface,
 )
-from .thumbnail_cache import ThumbnailCache, get_global_cache, set_global_cache_config
+from copick_shared_ui.core.thumbnail_cache import ThumbnailCache, get_global_cache, set_global_cache_config
 
 __all__ = [
     "AbstractImageInterface",

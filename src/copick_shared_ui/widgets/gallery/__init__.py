@@ -1,7 +1,7 @@
 """Gallery widget components."""
 
-from .gallery_widget import CopickGalleryWidget
-from .run_card import RunCard
+from copick_shared_ui.widgets.gallery.gallery_widget import CopickGalleryWidget
+from copick_shared_ui.widgets.gallery.run_card import RunCard
 
 __all__ = [
     "CopickGalleryWidget",

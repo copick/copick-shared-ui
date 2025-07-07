@@ -1,8 +1,8 @@
 """Theming support for gallery widgets."""
 
-from .colors import get_color_schemes
-from .styles import generate_button_stylesheet, generate_input_stylesheet, generate_stylesheet
-from .theme_detection import detect_theme
+from copick_shared_ui.theming.colors import get_color_schemes
+from copick_shared_ui.theming.styles import generate_button_stylesheet, generate_input_stylesheet, generate_stylesheet
+from copick_shared_ui.theming.theme_detection import detect_theme
 
 __all__ = [
     "get_color_schemes",
