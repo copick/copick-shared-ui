@@ -67,7 +67,8 @@ class ThumbnailCache:
         self.cache_dir: Optional[Path] = None
         self._image_interface: Optional[ImageInterface] = None
         self._setup_cache_directory()
-        self._cleanup_old_cache_entries()
+        # Skip cache cleanup during initialization to avoid blocking main thread
+        # self._cleanup_old_cache_entries()
 
     def set_image_interface(self, image_interface: ImageInterface) -> None:
         """Set the image interface for handling image operations.
@@ -84,10 +85,6 @@ class ThumbnailCache:
             base_cache_dir = Path(os.environ.get("LOCALAPPDATA", "")) / self.app_name / "thumbnails"
         elif platform.system() == "Darwin":  # macOS
             base_cache_dir = Path.home() / "Library" / "Caches" / self.app_name / "thumbnails"
-            print(f"🍎 macOS detected - base cache directory: {base_cache_dir}")
-            print(f"🍎 Home directory: {Path.home()}")
-            print(f"🍎 Library directory exists: {(Path.home() / 'Library').exists()}")
-            print(f"🍎 Library/Caches directory exists: {(Path.home() / 'Library' / 'Caches').exists()}")
         else:  # Linux and other Unix-like systems
             cache_home = os.environ.get("XDG_CACHE_HOME", str(Path.home() / ".cache"))
             base_cache_dir = Path(cache_home) / self.app_name / "thumbnails"
@@ -96,31 +93,20 @@ class ThumbnailCache:
             # Create hash of the config file path and content for cache namespacing
             self.config_hash = self._compute_config_hash(self.config_path)
             self.cache_dir = base_cache_dir / self.config_hash
-            print(f"🔑 Using config-specific cache directory: {self.cache_dir}")
-            print(f"🔑 Config path: {self.config_path}")
-            print(f"🔑 Config hash: {self.config_hash}")
         else:
             # Fallback to generic cache directory
             self.cache_dir = base_cache_dir / "default"
-            print(f"🔄 Using default cache directory: {self.cache_dir}")
-
-        print(f"📁 Cache directory path: {self.cache_dir}")
-        print(f"📁 Cache directory exists before creation: {self.cache_dir.exists()}")
-        print(f"📁 Parent directory exists: {self.cache_dir.parent.exists()}")
-        print(f"📁 Parent directory writable: {os.access(self.cache_dir.parent, os.W_OK) if self.cache_dir.parent.exists() else 'Parent does not exist'}")
 
         # Create the cache directory if it doesn't exist
         try:
             self.cache_dir.mkdir(parents=True, exist_ok=True)
-            print(f"📁 Cache directory created successfully")
-            print(f"📁 Cache directory exists after creation: {self.cache_dir.exists()}")
-            print(f"📁 Cache directory writable: {os.access(self.cache_dir, os.W_OK) if self.cache_dir.exists() else 'Directory does not exist'}")
+
+            # Create metadata file FIRST to ensure proper cache initialization
+            self._ensure_metadata_file()
+
         except Exception as e:
             print(f"❌ Error creating cache directory: {e}")
             raise
-
-        # Create metadata file if it doesn't exist
-        self._ensure_metadata_file()
 
     def _compute_config_hash(self, config_path: str) -> str:
         """Compute a hash for the config file based on path and content."""
@@ -163,7 +149,7 @@ class ThumbnailCache:
         tomogram_type: Optional[str] = None,
         voxel_spacing: Optional[float] = None,
     ) -> str:
-        """Generate a cache key for a thumbnail.
+        """Generate a human-readable cache key for a thumbnail.
 
         Args:
             run_name: Name of the copick run
@@ -171,18 +157,18 @@ class ThumbnailCache:
             voxel_spacing: Voxel spacing value
 
         Returns:
-            Cache key string
+            Human-readable cache key string
         """
         key_parts = [run_name]
         if tomogram_type:
             key_parts.append(tomogram_type)
         if voxel_spacing:
-            key_parts.append(f"vs{voxel_spacing}")
+            key_parts.append(f"vs{voxel_spacing:.3f}")
 
-        key_string = "_".join(key_parts)
-        # Hash the key to handle special characters and ensure consistent filename
-        cache_key = hashlib.md5(key_string.encode("utf-8")).hexdigest()
-        print(f"🔑 Cache key generation: '{key_string}' -> '{cache_key}'")
+        # Use human-readable filename instead of hash
+        cache_key = "_".join(key_parts)
+        # Replace any problematic characters for filename safety
+        cache_key = cache_key.replace("/", "_").replace("\\", "_").replace(":", "_")
         return cache_key
 
     def get_thumbnail_path(self, cache_key: str) -> Path:
@@ -207,13 +193,6 @@ class ThumbnailCache:
         """
         thumbnail_path = self.get_thumbnail_path(cache_key)
         exists = thumbnail_path.exists()
-        print(f"📁 Checking thumbnail existence: {thumbnail_path} -> {exists}")
-        if exists:
-            try:
-                stat = thumbnail_path.stat()
-                print(f"📁 Thumbnail file size: {stat.st_size} bytes, modified: {stat.st_mtime}")
-            except Exception as e:
-                print(f"📁 Error getting thumbnail stats: {e}")
         return exists
 
     def save_thumbnail(self, cache_key: str, image: Any) -> bool:
@@ -232,27 +211,12 @@ class ThumbnailCache:
 
         try:
             thumbnail_path = self.get_thumbnail_path(cache_key)
-            print(f"💾 Saving thumbnail for key '{cache_key}' to: {thumbnail_path}")
-            print(f"💾 Image object type: {type(image)}")
-            print(f"💾 Image interface type: {type(self._image_interface)}")
-            print(f"💾 Directory exists: {thumbnail_path.parent.exists()}")
-            print(f"💾 Directory writable: {os.access(thumbnail_path.parent, os.W_OK) if thumbnail_path.parent.exists() else 'Parent does not exist'}")
-            
             success = self._image_interface.save_image(image, str(thumbnail_path), "PNG")
-            print(f"💾 Save operation result: {success}")
-            
-            if success and thumbnail_path.exists():
-                stat = thumbnail_path.stat()
-                print(f"💾 Thumbnail saved successfully - size: {stat.st_size} bytes")
-            elif success:
-                print(f"💾 Save reported success but file doesn't exist: {thumbnail_path}")
-            else:
-                print(f"💾 Save operation failed")
-                
             return success
         except Exception as e:
             print(f"❌ Error saving thumbnail to cache: {e}")
             import traceback
+
             print(f"❌ Stack trace: {traceback.format_exc()}")
             return False
 
@@ -271,22 +235,15 @@ class ThumbnailCache:
 
         try:
             thumbnail_path = self.get_thumbnail_path(cache_key)
-            print(f"🔍 Loading thumbnail for key '{cache_key}' from: {thumbnail_path}")
-            
+
             if thumbnail_path.exists():
-                stat = thumbnail_path.stat()
-                print(f"🔍 Thumbnail file exists - size: {stat.st_size} bytes")
-                
                 image = self._image_interface.load_image(str(thumbnail_path))
-                print(f"🔍 Image loaded: {image is not None}")
-                
+
                 if image:
                     is_valid = self._image_interface.is_valid_image(image)
-                    print(f"🔍 Image valid: {is_valid}")
-                    print(f"🔍 Image type: {type(image)}")
                     return image if is_valid else None
                 else:
-                    print(f"🔍 Image load returned None")
+                    print("🔍 Image load returned None")
                     return None
             else:
                 print(f"🔍 Thumbnail file does not exist: {thumbnail_path}")
@@ -294,6 +251,7 @@ class ThumbnailCache:
         except Exception as e:
             print(f"❌ Error loading thumbnail from cache: {e}")
             import traceback
+
             print(f"❌ Stack trace: {traceback.format_exc()}")
             return None
 
@@ -309,37 +267,43 @@ class ThumbnailCache:
         try:
             import time
 
-            current_time = time.time()
-            max_age_seconds = max_age_days * 24 * 60 * 60  # Convert days to seconds
+            # current_time = time.time()
+            # max_age_seconds = max_age_days * 24 * 60 * 60  # Convert days to seconds
+            #
+            # removed_count = 0
+            # for thumbnail_file in self.cache_dir.glob("*.png"):
+            #     try:
+            #         # Get file modification time
+            #         file_mtime = thumbnail_file.stat().st_mtime
+            #         age_seconds = current_time - file_mtime
+            #
+            #         if age_seconds > max_age_seconds:
+            #             thumbnail_file.unlink()
+            #             removed_count += 1
 
-            removed_count = 0
-            for thumbnail_file in self.cache_dir.glob("*.png"):
-                try:
-                    # Get file modification time
-                    file_mtime = thumbnail_file.stat().st_mtime
-                    age_seconds = current_time - file_mtime
-
-                    if age_seconds > max_age_seconds:
-                        thumbnail_file.unlink()
-                        removed_count += 1
-
-                except Exception as e:
-                    print(f"Warning: Could not process cache file {thumbnail_file}: {e}")
+            # except Exception as e:
+            #     print(f"Warning: Could not process cache file {thumbnail_file}: {e}")
 
         except Exception as e:
             print(f"Warning: Cache cleanup failed: {e}")
 
     def clear_cache(self) -> bool:
-        """Clear all thumbnails from the cache.
+        """Clear all thumbnails and best tomogram info from the cache.
 
         Returns:
             True if successful, False otherwise
         """
         try:
             if self.cache_dir and self.cache_dir.exists():
-                # Remove all PNG files (thumbnails) but keep metadata
+                # Remove all PNG files (thumbnails)
                 for thumbnail_file in self.cache_dir.glob("*.png"):
                     thumbnail_file.unlink()
+
+                # Remove all best tomogram info files
+                for best_tomo_file in self.cache_dir.glob("*_best_tomogram.json"):
+                    best_tomo_file.unlink()
+
+                print("🧹 Cache cleared successfully")
                 return True
             return False
         except Exception as e:
@@ -361,15 +325,96 @@ class ThumbnailCache:
             "cache_size_mb": 0.0,
         }
 
+        # Skip expensive file scanning to avoid blocking - use fast check only
         if self.cache_dir and self.cache_dir.exists():
-            # Count thumbnails and calculate size
-            thumbnail_files = list(self.cache_dir.glob("*.png"))
-            info["thumbnail_count"] = len(thumbnail_files)
-
-            total_size = sum(f.stat().st_size for f in thumbnail_files)
-            info["cache_size_mb"] = total_size / (1024 * 1024)
+            try:
+                # Quick directory listing without stat() calls to avoid blocking
+                thumbnail_files = list(self.cache_dir.glob("*.png"))
+                info["thumbnail_count"] = len(thumbnail_files)
+                # Skip size calculation to avoid blocking on large caches
+                info["cache_size_mb"] = 0.0  # Size calculation disabled for performance
+            except Exception as e:
+                print(f"⚠️ Error getting cache info: {e}")
 
         return info
+
+    def save_best_tomogram_info(self, run_name: str, tomogram_type: str, voxel_spacing: float) -> bool:
+        """Save information about the best tomogram selection for a run.
+
+        Args:
+            run_name: Name of the copick run
+            tomogram_type: Type of the selected best tomogram
+            voxel_spacing: Voxel spacing of the selected best tomogram
+
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            import time
+
+            # Generate the cache key and thumbnail path for this best tomogram
+            cache_key = self.get_cache_key(run_name, tomogram_type, voxel_spacing)
+            thumbnail_path = self.get_thumbnail_path(cache_key)
+
+            best_tomo_file = self.cache_dir / f"{run_name}_best_tomogram.json"
+            best_tomo_info = {
+                "run_name": run_name,
+                "tomogram_type": tomogram_type,
+                "voxel_spacing": voxel_spacing,
+                "cache_key": cache_key,
+                "thumbnail_path": str(thumbnail_path),
+                "cached_at": str(time.time()),
+            }
+
+            with open(best_tomo_file, "w") as f:
+                json.dump(best_tomo_info, f, indent=2)
+
+            return True
+
+        except Exception as e:
+            print(f"❌ Error saving best tomogram info for '{run_name}': {e}")
+            return False
+
+    def load_best_tomogram_info(self, run_name: str) -> Optional[Dict[str, Any]]:
+        """Load information about the best tomogram selection for a run.
+
+        Args:
+            run_name: Name of the copick run
+
+        Returns:
+            Dictionary with tomogram info if found, None otherwise
+        """
+        try:
+            best_tomo_file = self.cache_dir / f"{run_name}_best_tomogram.json"
+
+            if not best_tomo_file.exists():
+                return None
+
+            with open(best_tomo_file, "r") as f:
+                best_tomo_info = json.load(f)
+
+            return best_tomo_info
+
+        except Exception as e:
+            print(f"❌ Error loading best tomogram info for '{run_name}': {e}")
+            return None
+
+    def has_best_tomogram_info(self, run_name: str) -> bool:
+        """Check if best tomogram information is cached for a run.
+
+        Args:
+            run_name: Name of the copick run
+
+        Returns:
+            True if best tomogram info is cached, False otherwise
+        """
+        try:
+            best_tomo_file = self.cache_dir / f"{run_name}_best_tomogram.json"
+            exists = best_tomo_file.exists()
+            return exists
+        except Exception as e:
+            print(f"❌ Error checking best tomogram info for '{run_name}': {e}")
+            return False
 
     def update_config(self, config_path: str) -> None:
         """Update the cache for a new config file.
@@ -380,7 +425,8 @@ class ThumbnailCache:
         if config_path != self.config_path:
             self.config_path = config_path
             self._setup_cache_directory()
-            self._cleanup_old_cache_entries()
+            # Skip cache cleanup to avoid blocking main thread
+            # self._cleanup_old_cache_entries()
 
 
 class GlobalCacheManager:

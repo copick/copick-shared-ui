@@ -211,7 +211,7 @@ class AbstractImageInterface(ABC):
             return None
 
     @abstractmethod
-    def scale_pixmap(self, pixmap: Any, size: tuple, smooth: bool = True) -> Any:
+    def scale_pixmap(self, pixmap: Any, size: tuple, smooth: bool = False) -> Any:
         """Scale a pixmap to the specified size."""
         pass
 

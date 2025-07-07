@@ -10,19 +10,19 @@ try:
 except ImportError:
     QT_AVAILABLE = False
 
-from ..core.models import (
+from copick_shared_ui.core.models import (
     AbstractImageInterface,
     AbstractSessionInterface,
     AbstractThemeInterface,
     AbstractWorkerInterface,
 )
-from ..theming.colors import get_color_scheme
-from ..theming.styles import (
+from copick_shared_ui.theming.colors import get_color_scheme
+from copick_shared_ui.theming.styles import (
     generate_button_stylesheet,
     generate_input_stylesheet,
     generate_stylesheet,
 )
-from ..workers.napari import NapariWorkerManager
+from copick_shared_ui.workers.napari import NapariWorkerManager
 
 if TYPE_CHECKING:
     import napari
@@ -200,7 +200,7 @@ class NapariImageInterface(AbstractImageInterface):
             print(f"Error creating pixmap from array: {e}")
             return None
 
-    def scale_pixmap(self, pixmap: Any, size: tuple, smooth: bool = True) -> Any:
+    def scale_pixmap(self, pixmap: Any, size: tuple, smooth: bool = False) -> Any:
         """Scale a QPixmap to the specified size."""
         if not QT_AVAILABLE or not pixmap:
             return pixmap
@@ -261,7 +261,7 @@ class NapariGalleryIntegration:
 
     def create_gallery_widget(self, parent=None):
         """Create a gallery widget with napari integration."""
-        from ..widgets.gallery.gallery_widget import CopickGalleryWidget
+        from copick_shared_ui.widgets.gallery.gallery_widget import CopickGalleryWidget
 
         return CopickGalleryWidget(
             self.session_interface,

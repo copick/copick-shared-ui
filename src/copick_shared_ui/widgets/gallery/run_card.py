@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Any, Optional
 from qtpy.QtCore import Qt, Signal
 from qtpy.QtWidgets import QFrame, QLabel, QPushButton, QVBoxLayout, QWidget
 
-from ...core.models import AbstractImageInterface, AbstractThemeInterface
+from copick_shared_ui.core.models import AbstractImageInterface, AbstractThemeInterface
 
 if TYPE_CHECKING:
     from copick.models import CopickRun
@@ -137,7 +137,7 @@ class RunCard(QFrame):
         """Set the thumbnail pixmap."""
         if pixmap:
             # Scale pixmap to fit label while maintaining aspect ratio
-            scaled_pixmap = self.image_interface.scale_pixmap(pixmap, self.thumbnail_label.size(), smooth=True)
+            scaled_pixmap = self.image_interface.scale_pixmap(pixmap, self.thumbnail_label.size(), smooth=False)
             self.thumbnail_label.setPixmap(scaled_pixmap)
             self.thumbnail_pixmap = pixmap
         else:

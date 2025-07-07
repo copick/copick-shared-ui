@@ -1,17 +1,19 @@
 """Platform-agnostic gallery widget for displaying copick runs."""
 
+import logging
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from qtpy.QtCore import Qt, Signal, Slot
 from qtpy.QtWidgets import QGridLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QScrollArea, QVBoxLayout, QWidget
 
-from ...core.models import (
+from copick_shared_ui.core.models import (
     AbstractImageInterface,
     AbstractSessionInterface,
     AbstractThemeInterface,
     AbstractWorkerInterface,
 )
-from .run_card import RunCard
+from copick_shared_ui.widgets.gallery.run_card import RunCard
 
 if TYPE_CHECKING:
     from copick.models import CopickRun
@@ -124,13 +126,10 @@ class CopickGalleryWidget(QWidget):
 
     def set_copick_root(self, copick_root: Optional[Any]) -> None:
         """Set the copick root and load runs."""
-        print(f"📸 Gallery: Setting copick root - new root: {copick_root is not None}")
-        
         # Clear workers to cancel any pending thumbnail loads from previous session
         self.worker_interface.clear_workers()
 
         # Clear caches when root changes
-        print(f"📸 Gallery: Clearing caches - cards: {len(self.all_run_cards)}, thumbnails: {len(self.thumbnail_cache)}")
         self.all_run_cards.clear()
         self.visible_run_cards.clear()
         self.thumbnail_cache.clear()
@@ -140,12 +139,10 @@ class CopickGalleryWidget(QWidget):
         if copick_root:
             self.runs = list(copick_root.runs)
             self.filtered_runs = self.runs.copy()
-            print(f"📸 Gallery: Loaded {len(self.runs)} runs from copick root")
             self._update_grid()
         else:
             self.runs = []
             self.filtered_runs = []
-            print(f"📸 Gallery: No copick root provided, clearing grid")
             self._clear_grid()
 
     def apply_search_filter(self, filter_text: str) -> None:
@@ -220,24 +217,19 @@ class CopickGalleryWidget(QWidget):
             if run.name in self.all_run_cards:
                 # Reuse existing card
                 card = self.all_run_cards[run.name]
-                print(f"📸 Gallery: Reusing existing card for '{run.name}'")
             else:
                 # Create new card
-                print(f"📸 Gallery: Creating new card for '{run.name}'")
                 card = RunCard(run, self.theme_interface, self.image_interface)
                 card.clicked.connect(self._on_run_card_clicked)
                 card.info_requested.connect(self._on_run_info_requested)
                 self.all_run_cards[run.name] = card
 
-                # Check if we have a cached thumbnail
+                # Check if we have a cached thumbnail in memory first
                 if run.name in self.thumbnail_cache:
-                    print(f"📸 Gallery: Found cached thumbnail for '{run.name}'")
                     cached_thumbnail = self.thumbnail_cache[run.name]
-                    print(f"📸 Gallery: Cached thumbnail type: {type(cached_thumbnail)}")
                     card.set_thumbnail(cached_thumbnail)
                 else:
-                    # Start thumbnail loading
-                    print(f"📸 Gallery: No cached thumbnail for '{run.name}', starting load")
+                    # Start thumbnail loading - let the worker check disk cache
                     self._load_run_thumbnail(run, run.name)
 
             # Add to visible cards and grid layout
@@ -252,46 +244,24 @@ class CopickGalleryWidget(QWidget):
         if self._is_destroyed:
             return
 
-        print(f"📸 Gallery: Starting thumbnail load for '{thumbnail_id}' - force_regenerate: {force_regenerate}")
-        try:
-            tomogram_count = len(run.tomograms) if hasattr(run, 'tomograms') else 'unknown'
-            print(f"📸 Gallery: Run has {tomogram_count} tomograms")
-        except Exception as e:
-            print(f"📸 Gallery: Could not get tomogram count: {e}")
-        
+        # Skip expensive tomogram count logging to prevent UI blocking with large datasets
         self.worker_interface.start_thumbnail_worker(run, thumbnail_id, self._on_thumbnail_loaded, force_regenerate)
 
     def _on_thumbnail_loaded(self, thumbnail_id: str, pixmap: Optional[Any], error: Optional[str]) -> None:
         """Handle thumbnail loading completion."""
-        print(f"📸 Gallery: Thumbnail loaded callback for '{thumbnail_id}'")
-        print(f"📸 Gallery: Widget destroyed: {self._is_destroyed}")
-        print(f"📸 Gallery: Card exists: {thumbnail_id in self.all_run_cards}")
-        print(f"📸 Gallery: Pixmap provided: {pixmap is not None}")
-        print(f"📸 Gallery: Error: {error}")
-        
+
         if self._is_destroyed or thumbnail_id not in self.all_run_cards:
-            print(
-                f"⚠️ Gallery: Thumbnail callback for '{thumbnail_id}' ignored (destroyed={self._is_destroyed}, card_exists={thumbnail_id in self.all_run_cards})",
-            )
             return
 
         card = self.all_run_cards[thumbnail_id]
 
         if error:
-            print(f"📸 Gallery: Setting error on card for '{thumbnail_id}': {error}")
             card.set_error(error)
         else:
-            print(f"📸 Gallery: Setting thumbnail on card for '{thumbnail_id}'")
-            if pixmap:
-                print(f"📸 Gallery: Pixmap type: {type(pixmap)}")
-                print(f"📸 Gallery: Pixmap size: {pixmap.size() if hasattr(pixmap, 'size') else 'No size method'}")
             card.set_thumbnail(pixmap)
             # Cache the thumbnail for future use
             if pixmap:
                 self.thumbnail_cache[thumbnail_id] = pixmap
-                print(f"📸 Gallery: Cached thumbnail for '{thumbnail_id}' - cache size: {len(self.thumbnail_cache)}")
-            else:
-                print(f"📸 Gallery: No pixmap to cache for '{thumbnail_id}'")
 
     @Slot(object)
     def _on_run_card_clicked(self, run: "CopickRun") -> None:
@@ -303,8 +273,7 @@ class CopickGalleryWidget(QWidget):
             # Emit signal for handling tomogram loading
             self.run_selected.emit(run)
 
-        except Exception as e:
-            print(f"Gallery: Error handling run card click: {e}")
+        except Exception:
             # Still emit the signal as fallback
             self.run_selected.emit(run)
 
@@ -372,18 +341,14 @@ class CopickGalleryWidget(QWidget):
     @Slot()
     def _on_regenerate_thumbnails(self) -> None:
         """Handle regenerate thumbnails button click."""
-        print(f"📸 Gallery: Regenerating thumbnails - clearing cache of {len(self.thumbnail_cache)} items")
-        
         # Clear memory cache
         self.thumbnail_cache.clear()
 
         # Reset all cards to loading state
-        print(f"📸 Gallery: Resetting {len(self.all_run_cards)} cards to loading state")
         for card in self.all_run_cards.values():
             card.set_loading("Regenerating...")
 
         # Force regenerate all visible thumbnails
-        print(f"📸 Gallery: Force regenerating {len(self.filtered_runs)} thumbnails")
         for run in self.filtered_runs:
             if run.name in self.all_run_cards:
                 self._load_run_thumbnail(run, run.name, force_regenerate=True)

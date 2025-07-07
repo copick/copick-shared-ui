@@ -1,311 +1,171 @@
-"""ChimeraX-specific worker implementations using QRunnable and QThreadPool."""
+"""ChimeraX-specific worker implementations with enhanced UI responsiveness optimizations."""
 
 from typing import TYPE_CHECKING, Any, Callable, Optional, Union
 
-try:
-    from Qt.QtCore import QObject, QRunnable, QThreadPool, Signal
-    from Qt.QtGui import QImage, QPixmap
-
-    QT_AVAILABLE = True
-except ImportError:
-    try:
-        from qtpy.QtCore import QObject, QRunnable, QThreadPool, Signal
-        from qtpy.QtGui import QImage, QPixmap
-
-        QT_AVAILABLE = True
-    except ImportError:
-        QT_AVAILABLE = False
-
-        # Fallback classes
-        class QRunnable:
-            def run(self):
-                pass
-
-        class QThreadPool:
-            def start(self, runnable):
-                pass
-
-            def clear(self):
-                pass
-
-            def waitForDone(self, timeout):
-                pass
-
-        class QObject:
-            pass
-
-        class Signal:
-            def __init__(self, *args):
-                pass
-
-            def emit(self, *args):
-                pass
-
-            def connect(self, func):
-                pass
-
-
-from .base import AbstractThumbnailWorker
-from .data_worker import AbstractDataWorker
-
-# Removed AbstractWorkerManager import - using Qt's built-in queue instead
+from copick_shared_ui.workers.unified_workers import (
+    QT_AVAILABLE,
+    UnifiedDataWorker,
+    UnifiedWorkerManager,
+    create_worker_manager,
+    get_platform_info,
+    is_threading_available,
+    thread_worker,
+)
 
 if TYPE_CHECKING:
     from copick.models import CopickRun, CopickTomogram
 
+if is_threading_available():
+    from copick_shared_ui.workers.base import AbstractThumbnailWorker
 
-class ChimeraXWorkerSignals(QObject):
-    """ChimeraX-specific worker signals."""
+    class ChimeraXThumbnailWorker(AbstractThumbnailWorker):
+        """ChimeraX-specific thumbnail worker with enhanced UI responsiveness optimizations."""
 
-    thumbnail_loaded = Signal(str, object, object)  # thumbnail_id, pixmap, error
-    data_loaded = Signal(str, object, object)  # data_type, data, error
+        def __init__(
+            self,
+            item: Union["CopickRun", "CopickTomogram"],
+            thumbnail_id: str,
+            callback: Callable[[str, Optional[Any], Optional[str]], None],
+            force_regenerate: bool = False,
+        ):
+            super().__init__(item, thumbnail_id, callback, force_regenerate)
+            self._worker_func = None
+            self._cancelled = False
+            self._finished = False
 
+        def start(self) -> None:
+            """Start the thumbnail loading work using thread_worker."""
 
-# Create a compatible metaclass to resolve QRunnable + ABC metaclass conflict
-class CompatibleMeta(type(AbstractThumbnailWorker), type(QRunnable)):
-    """Metaclass that resolves conflicts between ABC and Qt metaclasses."""
+            @thread_worker
+            def load_thumbnail():
+                if self._cancelled:
+                    return None, "Cancelled"
 
-    pass
+                try:
+                    yield "Starting ChimeraX thumbnail generation..."
+                    if self._cancelled:
+                        return None, "Cancelled"
 
+                    pixmap, error = self.generate_thumbnail_pixmap()
 
-class CompatibleDataMeta(type(AbstractDataWorker), type(QRunnable)):
-    """Metaclass that resolves conflicts between ABC and Qt metaclasses for data workers."""
+                    if self._cancelled:
+                        return None, "Cancelled"
 
-    pass
+                    return pixmap, error
 
+                except Exception as e:
+                    print(f"💥 ChimeraX Worker: Exception for '{self.thumbnail_id}': {e}")
+                    return None, str(e)
 
-class ChimeraXThumbnailWorker(AbstractThumbnailWorker, QRunnable, metaclass=CompatibleMeta):
-    """ChimeraX-specific thumbnail worker using QRunnable with unified caching."""
+            worker = load_thumbnail()
+            worker.returned.connect(self._on_worker_finished)
+            worker.errored.connect(self._on_worker_error)
 
-    def __init__(
-        self,
-        signals: ChimeraXWorkerSignals,
-        item: Union["CopickRun", "CopickTomogram"],
-        thumbnail_id: str,
-        force_regenerate: bool = False,
-    ):
-        # Initialize AbstractThumbnailWorker first with a callback that uses signals
-        def callback(tid: str, pixmap: Optional[Any], error: Optional[str]) -> None:
-            """Callback that emits signal."""
-            self.signals.thumbnail_loaded.emit(tid, pixmap, error)
+            self._worker_func = worker
+            worker.start()
 
-        AbstractThumbnailWorker.__init__(self, item, thumbnail_id, callback, force_regenerate)
-        QRunnable.__init__(self)
-        self.signals = signals
-        self._cancelled = False
-        self._finished = False
+        def cancel(self) -> None:
+            """Cancel the thumbnail loading work."""
+            self._cancelled = True
 
-    def start(self) -> None:
-        """Start method for compatibility - actual start is via QThreadPool."""
-        pass
+            # Cancel any pending timer callbacks
+            if hasattr(self, "_callback_timers"):
+                for timer in self._callback_timers[:]:
+                    try:
+                        if timer and hasattr(timer, "stop"):
+                            timer.stop()
+                        if timer in self._callback_timers:
+                            self._callback_timers.remove(timer)
+                    except (AttributeError, ValueError):
+                        pass
 
-    def cancel(self) -> None:
-        """Cancel the thumbnail loading work."""
-        self._cancelled = True
+            if self._worker_func and hasattr(self._worker_func, "quit"):
+                self._worker_func.quit()
 
-    def run(self) -> None:
-        """Run method called by QThreadPool."""
-        if self._cancelled:
+        def _on_worker_finished(self, result):
+            """Handle worker completion with ChimeraX-specific UI responsiveness optimizations."""
             self._finished = True
-            return
+            if self._cancelled:
+                return
 
-        try:
-            # Use unified thumbnail generation with caching
-            pixmap, error = self.generate_thumbnail_pixmap()
-            self.signals.thumbnail_loaded.emit(self.thumbnail_id, pixmap, error)
+            pixmap, error = result
 
-        except Exception as e:
-            self.signals.thumbnail_loaded.emit(self.thumbnail_id, None, str(e))
-        finally:
-            self._finished = True
+            # ChimeraX-specific optimizations to prevent UI blocking
+            if QT_AVAILABLE:
+                try:
+                    from qtpy.QtCore import QTimer
 
-    def _setup_cache_image_interface(self) -> None:
-        """Set up ChimeraX-specific image interface for caching."""
-        if self._cache:
-            try:
-                from ..core.image_interface import QtImageInterface
+                    timer = QTimer(None)
+                    timer.setSingleShot(True)
 
-                self._cache.set_image_interface(QtImageInterface())
-            except Exception as e:
-                print(f"Warning: Could not set up ChimeraX image interface: {e}")
+                    if not hasattr(self, "_callback_timers"):
+                        self._callback_timers = []
+                    self._callback_timers.append(timer)
 
-    def _array_to_pixmap(self, array: Any) -> Optional[QPixmap]:
-        """Convert numpy array to QPixmap."""
-        if not QT_AVAILABLE:
-            return None
+                    def execute_callback():
+                        try:
+                            if (
+                                hasattr(self, "callback")
+                                and hasattr(self, "thumbnail_id")
+                                and self.callback is not None
+                                and not self._cancelled
+                            ):
+                                self.callback(self.thumbnail_id, pixmap, error)
+                        except (AttributeError, RuntimeError):
+                            pass
+                        finally:
+                            try:
+                                if hasattr(self, "_callback_timers") and timer in self._callback_timers:
+                                    self._callback_timers.remove(timer)
+                            except (AttributeError, ValueError):
+                                pass
 
-        try:
-            import numpy as np
-
-            # Ensure array is uint8
-            if array.dtype != np.uint8:
-                # Normalize to 0-255 range
-                array_min, array_max = array.min(), array.max()
-                if array_max > array_min:
-                    array = ((array - array_min) / (array_max - array_min) * 255).astype(np.uint8)
-                else:
-                    array = np.zeros_like(array, dtype=np.uint8)
-
-            if array.ndim == 2:
-                # Grayscale image
-                height, width = array.shape
-                bytes_per_line = width
-
-                # Create QImage from array
-                qimage = QImage(array.data, width, height, bytes_per_line, QImage.Format_Grayscale8)
-
-                # Convert to QPixmap
-                pixmap = QPixmap.fromImage(qimage)
-                return pixmap
-
-            elif array.ndim == 3 and array.shape[2] == 3:
-                # RGB image
-                height, width, channels = array.shape
-                bytes_per_line = width * channels
-
-                # Create QImage from array
-                qimage = QImage(array.data, width, height, bytes_per_line, QImage.Format_RGB888)
-
-                # Convert to QPixmap
-                pixmap = QPixmap.fromImage(qimage)
-                return pixmap
-
+                    timer.timeout.connect(execute_callback)
+                    # Use 0ms delay to defer callback to next event loop iteration
+                    timer.start(5)
+                except ImportError:
+                    if not self._cancelled:
+                        self.callback(self.thumbnail_id, pixmap, error)
             else:
-                print(f"Unsupported array shape: {array.shape}")
-                return None
+                if not self._cancelled:
+                    self.callback(self.thumbnail_id, pixmap, error)
 
-        except Exception as e:
-            print(f"Error converting array to pixmap: {e}")
-            return None
+        def _on_worker_error(self, error):
+            """Handle worker error."""
+            if not self._cancelled:
+                self.callback(self.thumbnail_id, None, str(error))
 
+else:
+    # Fallback when threading is not available
+    class ChimeraXThumbnailWorker:
+        def __init__(self, *args, **kwargs):
+            pass
 
-class ChimeraXDataWorker(AbstractDataWorker, QRunnable, metaclass=CompatibleDataMeta):
-    """ChimeraX-specific data worker using QRunnable."""
+        def start(self):
+            pass
 
-    def __init__(
-        self,
-        signals: ChimeraXWorkerSignals,
-        run: "CopickRun",
-        data_type: str,
-    ):
-        # Initialize AbstractDataWorker first with a callback that uses signals
-        def callback(dtype: str, data: Optional[Any], error: Optional[str]) -> None:
-            """Callback that emits signal."""
-            self.signals.data_loaded.emit(dtype, data, error)
-
-        AbstractDataWorker.__init__(self, run, data_type, callback)
-        QRunnable.__init__(self)
-        self.signals = signals
-        self._finished = False
-
-    def start(self) -> None:
-        """Start method for compatibility - actual start is via QThreadPool."""
-        pass
-
-    def cancel(self) -> None:
-        """Cancel the data loading work."""
-        self._cancelled = True
-
-    def run(self) -> None:
-        """Run method called by QThreadPool."""
-        if self._cancelled:
-            self._finished = True
-            return
-
-        try:
-            # Use base class data loading logic
-            data, error = self.load_data()
-            self.signals.data_loaded.emit(self.data_type, data, error)
-
-        except Exception as e:
-            self.signals.data_loaded.emit(self.data_type, None, str(e))
-        finally:
-            self._finished = True
+        def cancel(self):
+            pass
 
 
-class ChimeraXWorkerManager:
-    """Manages ChimeraX thumbnail and data workers using QThreadPool's built-in queue."""
+# Re-export unified classes with ChimeraX naming for compatibility
+ChimeraXDataWorker = UnifiedDataWorker
+ChimeraXWorkerManager = UnifiedWorkerManager
 
-    def __init__(self, max_concurrent_workers: int = 8):
-        """Initialize ChimeraX worker manager.
 
-        Args:
-            max_concurrent_workers: Maximum number of workers that can run simultaneously.
-                Default is 8 to balance performance and system stability with large projects.
-        """
-        self._max_concurrent = max_concurrent_workers
+# Convenience functions
+def is_chimerax_threading_available() -> bool:
+    """Check if ChimeraX threading is available."""
+    return is_threading_available()
 
-        if QT_AVAILABLE:
-            self._thread_pool = QThreadPool()
-            # Use Qt's built-in queue management
-            self._thread_pool.setMaxThreadCount(max_concurrent_workers)
-        else:
-            self._thread_pool = None
 
-    def start_thumbnail_worker(
-        self,
-        item: Union["CopickRun", "CopickTomogram"],
-        thumbnail_id: str,
-        callback: Callable[[str, Optional[Any], Optional[str]], None],
-        force_regenerate: bool = False,
-    ) -> None:
-        """Start a thumbnail loading worker."""
-        if not QT_AVAILABLE or not self._thread_pool:
-            callback(thumbnail_id, None, "Qt not available")
-            return
+def get_chimerax_platform_info() -> dict:
+    """Get ChimeraX threading platform information."""
+    info = get_platform_info()
+    info["platform"] = "ChimeraX"
+    return info
 
-        # Create unique signals for each worker to avoid callback conflicts
-        worker_signals = ChimeraXWorkerSignals()
-        worker_signals.thumbnail_loaded.connect(callback)
 
-        worker = ChimeraXThumbnailWorker(worker_signals, item, thumbnail_id, force_regenerate)
-
-        # QThreadPool handles queuing automatically
-        self._thread_pool.start(worker)
-
-    def start_data_worker(
-        self,
-        run: "CopickRun",
-        data_type: str,
-        callback: Callable[[str, Optional[Any], Optional[str]], None],
-    ) -> None:
-        """Start a data loading worker."""
-        if not QT_AVAILABLE or not self._thread_pool:
-            callback(data_type, None, "Qt not available")
-            return
-
-        # Create unique signals for each worker to avoid callback conflicts
-        worker_signals = ChimeraXWorkerSignals()
-        worker_signals.data_loaded.connect(callback)
-
-        worker = ChimeraXDataWorker(worker_signals, run, data_type)
-
-        # QThreadPool handles queuing automatically
-        self._thread_pool.start(worker)
-
-    def clear_workers(self) -> None:
-        """Clear all pending workers."""
-        if self._thread_pool:
-            self._thread_pool.clear()
-
-    def shutdown_workers(self, timeout_ms: int = 3000) -> None:
-        """Shutdown all workers with timeout."""
-        if self._thread_pool:
-            self._thread_pool.clear()
-            _ = self._thread_pool.waitForDone(timeout_ms)
-
-    def get_status(self) -> dict:
-        """Get current worker manager status for debugging."""
-        if self._thread_pool:
-            return {
-                "active_threads": self._thread_pool.activeThreadCount(),
-                "max_threads": self._thread_pool.maxThreadCount(),
-                "class_name": self.__class__.__name__,
-            }
-        else:
-            return {
-                "active_threads": 0,
-                "max_threads": 0,
-                "class_name": self.__class__.__name__,
-                "error": "Qt not available",
-            }
+def create_chimerax_worker_manager(max_concurrent_workers: int = 6) -> ChimeraXWorkerManager:
+    """Create a ChimeraX worker manager with platform-appropriate defaults."""
+    return create_worker_manager(max_concurrent_workers)
