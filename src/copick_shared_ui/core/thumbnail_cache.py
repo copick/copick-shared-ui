@@ -67,8 +67,8 @@ class ThumbnailCache:
         self.cache_dir: Optional[Path] = None
         self._image_interface: Optional[ImageInterface] = None
         self._setup_cache_directory()
-        # Skip cache cleanup during initialization to avoid blocking main thread
-        # self._cleanup_old_cache_entries()
+        # Perform cache cleanup based on metadata file age (efficient)
+        self._cleanup_old_cache_entries()
 
     def set_image_interface(self, image_interface: ImageInterface) -> None:
         """Set the image interface for handling image operations.
@@ -267,25 +267,80 @@ class ThumbnailCache:
         try:
             import time
 
-            # current_time = time.time()
-            # max_age_seconds = max_age_days * 24 * 60 * 60  # Convert days to seconds
-            #
-            # removed_count = 0
-            # for thumbnail_file in self.cache_dir.glob("*.png"):
-            #     try:
-            #         # Get file modification time
-            #         file_mtime = thumbnail_file.stat().st_mtime
-            #         age_seconds = current_time - file_mtime
-            #
-            #         if age_seconds > max_age_seconds:
-            #             thumbnail_file.unlink()
-            #             removed_count += 1
+            current_time = time.time()
+            max_age_seconds = max_age_days * 24 * 60 * 60  # Convert days to seconds
 
-            # except Exception as e:
-            #     print(f"Warning: Could not process cache file {thumbnail_file}: {e}")
+            # Check metadata file creation date instead of individual thumbnails
+            metadata_file = self.cache_dir / "cache_metadata.json"
+            if metadata_file.exists():
+                try:
+                    with open(metadata_file, "r") as f:
+                        metadata = json.load(f)
+
+                    # Get cache creation time from metadata
+                    cache_created_at = float(metadata.get("created_at", current_time))
+                    cache_age_seconds = current_time - cache_created_at
+
+                    # If the entire cache is older than max_age_days, clear it
+                    if cache_age_seconds > max_age_seconds:
+                        removed_count = 0
+
+                        # Remove all thumbnail files
+                        for thumbnail_file in self.cache_dir.glob("*.png"):
+                            try:
+                                thumbnail_file.unlink()
+                                removed_count += 1
+                            except Exception as e:
+                                print(f"Warning: Could not remove cache file {thumbnail_file}: {e}")
+
+                        # Remove all best tomogram info files
+                        for best_tomo_file in self.cache_dir.glob("*_best_tomogram.json"):
+                            try:
+                                best_tomo_file.unlink()
+                            except Exception as e:
+                                print(f"Warning: Could not remove best tomogram file {best_tomo_file}: {e}")
+
+                        if removed_count > 0:
+                            print(
+                                f"🧹 Cleaned up {removed_count} old cache entries (cache age: {cache_age_seconds / (24 * 60 * 60):.1f} days)",
+                            )
+
+                            # Update metadata with new creation time
+                            metadata["created_at"] = str(current_time)
+                            with open(metadata_file, "w") as f:
+                                json.dump(metadata, f, indent=2)
+
+                except (json.JSONDecodeError, ValueError, KeyError) as e:
+                    print(f"Warning: Could not parse cache metadata: {e}")
+                except Exception as e:
+                    print(f"Warning: Could not process cache metadata: {e}")
 
         except Exception as e:
             print(f"Warning: Cache cleanup failed: {e}")
+
+    def _update_cache_timestamp(self) -> None:
+        """Update the cache timestamp to keep frequently used projects fresh."""
+        if not self.cache_dir or not self.cache_dir.exists():
+            return
+
+        try:
+            import time
+
+            metadata_file = self.cache_dir / "cache_metadata.json"
+            if metadata_file.exists():
+                # Read existing metadata
+                with open(metadata_file, "r") as f:
+                    metadata = json.load(f)
+
+                # Update the created_at timestamp to current time
+                metadata["created_at"] = str(time.time())
+
+                # Write back the updated metadata
+                with open(metadata_file, "w") as f:
+                    json.dump(metadata, f, indent=2)
+
+        except Exception as e:
+            print(f"Warning: Could not update cache timestamp: {e}")
 
     def clear_cache(self) -> bool:
         """Clear all thumbnails and best tomogram info from the cache.
@@ -426,7 +481,10 @@ class ThumbnailCache:
             self.config_path = config_path
             self._setup_cache_directory()
             # Skip cache cleanup to avoid blocking main thread
-            # self._cleanup_old_cache_entries()
+            self._cleanup_old_cache_entries()
+
+        # Update the cache timestamp to keep frequently used projects fresh
+        self._update_cache_timestamp()
 
 
 class GlobalCacheManager:
