@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/copick/copick-shared-ui/compare/copick-shared-ui-v0.2.0...copick-shared-ui-v0.2.1) (2025-12-03)
+
+
+### 🐞 Bug Fixes
+
+* bump version to create zenodo DOI ([#9](https://github.com/copick/copick-shared-ui/issues/9)) ([82ea303](https://github.com/copick/copick-shared-ui/commit/82ea3036e02fbc3b9c575cdc9bdce47f4acfd68e))
+
 ## [0.2.0](https://github.com/copick/copick-shared-ui/compare/copick-shared-ui-v0.1.1...copick-shared-ui-v0.2.0) (2025-07-07)
 
 
