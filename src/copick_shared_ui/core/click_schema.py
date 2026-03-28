@@ -96,6 +96,28 @@ def _normalize_type(param: click.Parameter) -> str:
     return "string"
 
 
+_PATH_NAME_SUFFIXES = ("_path", "_dir", "_directory", "_file", "_folder")
+_PATH_EXACT_NAMES = {"output", "outdir", "target_dir", "output_dir", "output_file"}
+
+
+def _looks_like_path(param: click.Parameter) -> bool:
+    """Heuristic: does this string param likely represent a filesystem path?
+
+    Checks metavar and parameter name for path-like patterns. Used as a
+    fallback when the Click type is str but the param semantically takes a path.
+    """
+    metavar = getattr(param, "metavar", None)
+    if metavar and metavar.upper() in ("PATH", "DIR", "DIRECTORY", "FILE"):
+        return True
+    name = param.name or ""
+    if name in _PATH_EXACT_NAMES:
+        return True
+    for suffix in _PATH_NAME_SUFFIXES:
+        if name.endswith(suffix):
+            return True
+    return False
+
+
 def _get_option_group_name(param: click.Parameter) -> Optional[str]:
     """Extract option group name from click-option-group parameters."""
     # click-option-group attaches a `group` attribute to GroupedOption instances
@@ -147,9 +169,14 @@ def _extract_param_schema(param: click.Parameter) -> Optional[ParamSchema]:
     # Determine auto-fill type
     auto_fill_type = _AUTO_FILL_MAP.get(param.name)
 
+    # Determine param type, with heuristic promotion for path-like strings
+    param_type = "bool" if is_flag else _normalize_type(param)
+    if param_type == "string" and not is_argument and _looks_like_path(param):
+        param_type = "path"
+
     return ParamSchema(
         name=param.name,
-        param_type="bool" if is_flag else _normalize_type(param),
+        param_type=param_type,
         human_name=_humanize_name(param.human_readable_name),
         help=getattr(param, "help", "") or "",
         required=param.required if not is_flag else False,
