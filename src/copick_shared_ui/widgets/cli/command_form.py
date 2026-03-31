@@ -41,7 +41,7 @@ except ImportError:
         QWidget,
     )
 
-from copick_shared_ui.core.click_schema import CommandSchema, ParamSchema, _HIDDEN_PARAMS
+from copick_shared_ui.core.click_schema import _HIDDEN_PARAMS, CommandSchema, ParamSchema
 from copick_shared_ui.core.models import (
     AbstractCLIContextInterface,
     AbstractCLIRefreshInterface,
@@ -52,7 +52,6 @@ from copick_shared_ui.widgets.cli.command_runner import (
     run_click_command_worker,
 )
 from copick_shared_ui.widgets.cli.param_widgets import ParamWidgetResult, create_param_widget
-
 
 # Human-readable type names
 _TYPE_DISPLAY = {
@@ -73,7 +72,7 @@ class _HelpPopup(QFrame):
         self.setFrameShape(QFrame.StyledPanel)
         self.setStyleSheet(
             "QFrame { background: palette(window); border: 1px solid palette(mid); "
-            "border-radius: 4px; padding: 6px; }"
+            "border-radius: 4px; padding: 6px; }",
         )
 
         layout = QVBoxLayout(self)
@@ -148,7 +147,7 @@ def _make_param_label(param: ParamSchema) -> QWidget:
         help_btn.setStyleSheet(
             "QToolButton { color: #888; border: 1px solid #999; border-radius: 8px; "
             "font-size: 10px; font-weight: bold; padding: 0; }"
-            "QToolButton:hover { color: #fff; background: #666; border-color: #666; }"
+            "QToolButton:hover { color: #fff; background: #666; border-color: #666; }",
         )
         help_btn.setCursor(Qt.PointingHandCursor)
 
@@ -235,10 +234,7 @@ class ClickCommandForm(QWidget):
             layout.addWidget(help_label)
 
         # --- Arguments section (positional params) ---
-        argument_params = [
-            p for p in self.schema.params
-            if p.is_argument and p.name not in _HIDDEN_PARAMS
-        ]
+        argument_params = [p for p in self.schema.params if p.is_argument and p.name not in _HIDDEN_PARAMS]
         if argument_params:
             args_group = QGroupBox("Arguments")
             args_form = QFormLayout(args_group)
@@ -246,7 +242,9 @@ class ClickCommandForm(QWidget):
             args_form.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)
             for param in argument_params:
                 widget, get_val, set_val = create_param_widget(
-                    param, context=self.context, parent=self,
+                    param,
+                    context=self.context,
+                    parent=self,
                 )
                 label = _make_param_label(param)
                 args_form.addRow(label, widget)
@@ -256,10 +254,7 @@ class ClickCommandForm(QWidget):
         # --- Option groups ---
         if self.schema.param_groups:
             for group in self.schema.param_groups:
-                visible_params = [
-                    p for p in group.params
-                    if p.name not in _HIDDEN_PARAMS and not p.is_argument
-                ]
+                visible_params = [p for p in group.params if p.name not in _HIDDEN_PARAMS and not p.is_argument]
                 if not visible_params:
                     continue
 
@@ -270,7 +265,9 @@ class ClickCommandForm(QWidget):
 
                 for param in visible_params:
                     widget, get_val, set_val = create_param_widget(
-                        param, context=self.context, parent=self,
+                        param,
+                        context=self.context,
+                        parent=self,
                     )
                     label = _make_param_label(param)
                     form.addRow(label, widget)
@@ -279,10 +276,7 @@ class ClickCommandForm(QWidget):
                 layout.addWidget(group_box)
         else:
             # No groups — put all non-hidden, non-argument params in a single form
-            option_params = [
-                p for p in self.schema.params
-                if p.name not in _HIDDEN_PARAMS and not p.is_argument
-            ]
+            option_params = [p for p in self.schema.params if p.name not in _HIDDEN_PARAMS and not p.is_argument]
             if option_params:
                 options_group = QGroupBox("Options")
                 form = QFormLayout(options_group)
@@ -290,7 +284,9 @@ class ClickCommandForm(QWidget):
                 form.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)
                 for param in option_params:
                     widget, get_val, set_val = create_param_widget(
-                        param, context=self.context, parent=self,
+                        param,
+                        context=self.context,
+                        parent=self,
                     )
                     label = _make_param_label(param)
                     form.addRow(label, widget)
@@ -350,7 +346,7 @@ class ClickCommandForm(QWidget):
     def _collect_values(self) -> Dict[str, Any]:
         """Collect current values from all parameter widgets."""
         values: Dict[str, Any] = {}
-        for name, (widget, get_val, set_val) in self._param_widgets.items():
+        for name, (_widget, get_val, _set_val) in self._param_widgets.items():
             values[name] = get_val()
         return values
 
@@ -483,6 +479,7 @@ class ClickCommandForm(QWidget):
         # Serialize to URI
         try:
             from copick.util.uri import serialize_copick_uri
+
             uri = serialize_copick_uri(copick_obj)
         except Exception:
             return
@@ -555,11 +552,11 @@ class ClickCommandForm(QWidget):
         the same run the selected annotation belongs to.
         """
         for param in self.schema.params:
-            if param.auto_fill_type in ("run_names",) or param.name in ("run", "run_names"):
-                if param.name in self._param_widgets:
-                    _, _, set_val = self._param_widgets[param.name]
-                    set_val(run_name)
-                    return
+            is_run_param = param.auto_fill_type in ("run_names",) or param.name in ("run", "run_names")
+            if is_run_param and param.name in self._param_widgets:
+                _, _, set_val = self._param_widgets[param.name]
+                set_val(run_name)
+                return
 
     def cleanup(self) -> None:
         """Stop any active worker and disconnect signals."""

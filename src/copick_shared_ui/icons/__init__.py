@@ -124,10 +124,7 @@ def get_openmoji_font(point_size: int = 12) -> QFont:
     if _openmoji_font_family is None:
         initialize_openmoji_font()
 
-    if _openmoji_font_family:
-        font = QFont(_openmoji_font_family)
-    else:
-        font = QFont()
+    font = QFont(_openmoji_font_family) if _openmoji_font_family else QFont()
 
     font.setPointSize(point_size)
     return font

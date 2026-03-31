@@ -107,6 +107,7 @@ class ActionsBar(QWidget):
         # Serialize URI
         try:
             from copick.util.uri import serialize_copick_uri
+
             self._current_uri = serialize_copick_uri(copick_obj)
         except Exception:
             self._current_uri = ""

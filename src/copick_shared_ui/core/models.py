@@ -287,20 +287,18 @@ class AbstractCLIContextInterface(ABC):
         """
         return None
 
-    def connect_selection_changed(self, callback: Callable[[Any], None]) -> None:
+    def connect_selection_changed(self, callback: Callable[[Any], None]) -> None:  # noqa: B027
         """Connect to tree/viewer selection changes.
 
         The callback receives the selected copick object when selection changes.
         Default is a no-op; platforms with a tree view should override.
         """
-        pass
 
-    def disconnect_selection_changed(self, callback: Callable[[Any], None]) -> None:
+    def disconnect_selection_changed(self, callback: Callable[[Any], None]) -> None:  # noqa: B027
         """Disconnect a previously connected selection callback.
 
         Default is a no-op; platforms with a tree view should override.
         """
-        pass
 
 
 class AbstractCLIRefreshInterface(ABC):

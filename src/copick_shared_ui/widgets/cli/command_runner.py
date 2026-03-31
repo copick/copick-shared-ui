@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Optional
 import click
 from click.testing import CliRunner
 
-from copick_shared_ui.core.click_schema import CommandSchema, ParamSchema, _HIDDEN_PARAMS
+from copick_shared_ui.core.click_schema import _HIDDEN_PARAMS, CommandSchema, ParamSchema
 
 # Import thread_worker from napari or superqt
 try:
@@ -57,17 +57,12 @@ def build_args(
         value = values.get(name)
 
         if param.is_flag:
-            if value is True:
-                # Use the first opt string (e.g. "--overwrite")
-                if param.opt_strings:
-                    # For flag pairs, use the positive form
-                    flag = param.opt_strings[0]
-                    args.append(flag)
-            elif value is False and param.default is True:
-                # Explicitly set the negative form if default is True
-                if param.secondary_name and len(param.opt_strings) > 1:
-                    # Use secondary opt string (e.g. "--no-overwrite")
-                    args.append(param.opt_strings[-1])
+            if value is True and param.opt_strings:
+                # For flag pairs, use the positive form
+                args.append(param.opt_strings[0])
+            elif value is False and param.default is True and param.secondary_name and len(param.opt_strings) > 1:
+                # Use secondary opt string (e.g. "--no-overwrite")
+                args.append(param.opt_strings[-1])
             continue
 
         if value is None or value == "":
@@ -139,6 +134,4 @@ if thread_worker is not None:
 else:
 
     def run_click_command_worker(click_command, args_list):
-        raise RuntimeError(
-            "thread_worker not available. Install napari or superqt."
-        )
+        raise RuntimeError("thread_worker not available. Install napari or superqt.")

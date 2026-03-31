@@ -328,10 +328,7 @@ class CopickURIWidget(QWidget):
 
         # Get the screen geometry for the screen the button is on
         screen = QApplication.screenAt(self.browse_btn.mapToGlobal(QPoint(0, 0)))
-        if screen is not None:
-            screen_rect = screen.availableGeometry()
-        else:
-            screen_rect = QRect(0, 0, 1920, 1080)
+        screen_rect = screen.availableGeometry() if screen is not None else QRect(0, 0, 1920, 1080)
 
         # Clamp horizontal: if popup overflows right edge, shift left
         if pos.x() + popup_size.width() > screen_rect.right():

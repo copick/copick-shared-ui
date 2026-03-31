@@ -116,7 +116,7 @@ class ClickCommandBrowser(QWidget):
         # Empty state
         self.empty_label = QLabel(
             "Select a tool from the list to configure and run it.\n\n"
-            "Tools are auto-discovered from installed copick packages."
+            "Tools are auto-discovered from installed copick packages.",
         )
         self.empty_label.setAlignment(Qt.AlignCenter)
         self.empty_label.setStyleSheet("color: #888; font-size: 13px; padding: 40px;")
@@ -163,13 +163,15 @@ class ClickCommandBrowser(QWidget):
 
             # Filter
             filtered_top = [
-                s for s in top_level
+                s
+                for s in top_level
                 if not filter_lower or filter_lower in s.name.lower() or filter_lower in s.short_help.lower()
             ]
             filtered_subgroups: Dict[str, List[CommandSchema]] = {}
             for gname, gschemas in subgroups.items():
                 filtered = [
-                    s for s in gschemas
+                    s
+                    for s in gschemas
                     if not filter_lower
                     or filter_lower in s.name.lower()
                     or filter_lower in s.short_help.lower()
@@ -219,7 +221,8 @@ class ClickCommandBrowser(QWidget):
             if category in _CATEGORY_ORDER:
                 continue
             filtered = [
-                s for s in schemas
+                s
+                for s in schemas
                 if not filter_lower or filter_lower in s.name.lower() or filter_lower in s.short_help.lower()
             ]
             if not filtered:
@@ -274,7 +277,11 @@ class ClickCommandBrowser(QWidget):
         self._current_form = form
 
     def select_and_prefill(
-        self, schema: CommandSchema, uri: str = "", run_name: str = "", object_type: str = "",
+        self,
+        schema: CommandSchema,
+        uri: str = "",
+        run_name: str = "",
+        object_type: str = "",
     ) -> None:
         """Select a command and optionally pre-fill its matching URI and run name.
 
@@ -291,7 +298,7 @@ class ClickCommandBrowser(QWidget):
         self._show_form(schema)
 
         # Select the command in the tree for visual feedback
-        for item_id, item_schema in self._item_to_schema.items():
+        for _item_id, item_schema in self._item_to_schema.items():
             if item_schema is schema:
                 self._select_tree_item_for_schema(schema)
                 break

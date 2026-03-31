@@ -4,6 +4,7 @@ Each factory returns a tuple of (widget, get_value, set_value) so that the
 command form can read and write parameter values generically.
 """
 
+from contextlib import suppress
 from typing import Any, Callable, List, Optional, Tuple
 
 try:
@@ -134,27 +135,21 @@ def _create_int_widget(
     # Default to non-negative; allow negative only if the default is negative
     min_val = 0
     if param.default is not None:
-        try:
+        with suppress(ValueError, TypeError):
             if int(param.default) < 0:
                 min_val = -999999
-        except (ValueError, TypeError):
-            pass
     widget.setRange(min_val, 999999)
     if param.default is not None:
-        try:
+        with suppress(ValueError, TypeError):
             widget.setValue(int(param.default))
-        except (ValueError, TypeError):
-            pass
 
     def get_value() -> Any:
         return widget.value()
 
     def set_value(val: Any) -> None:
         if val is not None:
-            try:
+            with suppress(ValueError, TypeError):
                 widget.setValue(int(val))
-            except (ValueError, TypeError):
-                pass
 
     return widget, get_value, set_value
 
@@ -168,29 +163,23 @@ def _create_float_widget(
     # Default to non-negative; allow negative only if the default is negative
     min_val = 0.0
     if param.default is not None:
-        try:
+        with suppress(ValueError, TypeError):
             if float(param.default) < 0:
                 min_val = -999999.0
-        except (ValueError, TypeError):
-            pass
     widget.setRange(min_val, 999999.0)
     widget.setDecimals(4)
     widget.setSingleStep(0.1)
     if param.default is not None:
-        try:
+        with suppress(ValueError, TypeError):
             widget.setValue(float(param.default))
-        except (ValueError, TypeError):
-            pass
 
     def get_value() -> Any:
         return widget.value()
 
     def set_value(val: Any) -> None:
         if val is not None:
-            try:
+            with suppress(ValueError, TypeError):
                 widget.setValue(float(val))
-            except (ValueError, TypeError):
-                pass
 
     return widget, get_value, set_value
 

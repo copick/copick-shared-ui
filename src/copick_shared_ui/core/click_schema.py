@@ -103,9 +103,9 @@ def _normalize_type(param: click.Parameter) -> str:
         return "choice"
     if isinstance(ptype, click.Path):
         return "path"
-    if isinstance(ptype, click.types.FloatParamType) or isinstance(ptype, click.FloatRange):
+    if isinstance(ptype, (click.types.FloatParamType, click.FloatRange)):
         return "float"
-    if isinstance(ptype, click.types.IntParamType) or isinstance(ptype, click.IntRange):
+    if isinstance(ptype, (click.types.IntParamType, click.IntRange)):
         return "int"
     if isinstance(ptype, click.types.BoolParamType):
         return "bool"
@@ -132,10 +132,7 @@ def _looks_like_path(param: click.Parameter) -> bool:
     name = param.name or ""
     if name in _PATH_EXACT_NAMES:
         return True
-    for suffix in _PATH_NAME_SUFFIXES:
-        if name.endswith(suffix):
-            return True
-    return False
+    return any(name.endswith(suffix) for suffix in _PATH_NAME_SUFFIXES)
 
 
 def _get_option_group_name(param: click.Parameter) -> Optional[str]:
