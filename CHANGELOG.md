@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/copick/copick-shared-ui/compare/copick-shared-ui-v0.3.0...copick-shared-ui-v0.4.0) (2026-03-31)
+
+
+### ✨ Features
+
+* Auto-construct GUI for CLI tools available for copick. ([#13](https://github.com/copick/copick-shared-ui/issues/13)) ([f3cf862](https://github.com/copick/copick-shared-ui/commit/f3cf862ca38ed9e30ee66cfd14727c6e792aacaa))
+
 ## [0.3.0](https://github.com/copick/copick-shared-ui/compare/copick-shared-ui-v0.2.1...copick-shared-ui-v0.3.0) (2026-02-13)
 
 
