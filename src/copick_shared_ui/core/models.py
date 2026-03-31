@@ -1,7 +1,7 @@
 """Core abstract interfaces for platform-agnostic copick shared UI components."""
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Union
 
 if TYPE_CHECKING:
     from copick.models import CopickRun, CopickTomogram
@@ -223,4 +223,97 @@ class AbstractImageInterface(ABC):
     @abstractmethod
     def load_pixmap(self, path: str) -> Optional[Any]:
         """Load pixmap from file."""
+        pass
+
+
+# CLI tool interfaces
+class AbstractCLIContextInterface(ABC):
+    """Abstract interface for providing CLI context (auto-fill, project state).
+
+    Platform implementations read from the active copick project to provide
+    context-aware data for auto-filling CLI command parameters.
+    """
+
+    @abstractmethod
+    def get_config_path(self) -> Optional[str]:
+        """Get the current copick config file path (for --config auto-fill).
+
+        If the project was loaded from dataset IDs (no file), the implementation
+        should serialize the config to a temp file and return that path.
+        """
+        pass
+
+    @abstractmethod
+    def get_copick_root(self) -> Optional[Any]:
+        """Get the current copick root object."""
+        pass
+
+    @abstractmethod
+    def get_run_names(self) -> List[str]:
+        """Get list of available run names for run selector auto-fill."""
+        pass
+
+    @abstractmethod
+    def get_object_names(self) -> List[str]:
+        """Get list of available pickable object names."""
+        pass
+
+    @abstractmethod
+    def get_voxel_spacings(self) -> List[float]:
+        """Get list of available voxel spacings."""
+        pass
+
+    @abstractmethod
+    def get_user_ids(self) -> List[str]:
+        """Get list of known user IDs from the project."""
+        pass
+
+    @abstractmethod
+    def get_session_ids(self) -> List[str]:
+        """Get list of known session IDs from the project."""
+        pass
+
+    @abstractmethod
+    def get_tomo_types(self) -> List[str]:
+        """Get list of available tomogram types."""
+        pass
+
+    def get_selected_copick_object(self) -> Optional[Any]:
+        """Get the currently selected copick object from the tree/viewer.
+
+        Returns the copick model object (CopickPicks, CopickSegmentation,
+        CopickTomogram, etc.) for the currently selected UI element, or None.
+        Default returns None; platforms with a tree view should override.
+        """
+        return None
+
+    def connect_selection_changed(self, callback: Callable[[Any], None]) -> None:  # noqa: B027
+        """Connect to tree/viewer selection changes.
+
+        The callback receives the selected copick object when selection changes.
+        Default is a no-op; platforms with a tree view should override.
+        """
+
+    def disconnect_selection_changed(self, callback: Callable[[Any], None]) -> None:  # noqa: B027
+        """Disconnect a previously connected selection callback.
+
+        Default is a no-op; platforms with a tree view should override.
+        """
+
+
+class AbstractCLIRefreshInterface(ABC):
+    """Abstract interface for refreshing views after CLI command execution.
+
+    Platform implementations trigger appropriate view updates based on
+    the type of command that was executed.
+    """
+
+    @abstractmethod
+    def refresh_after_command(self, command_category: str) -> None:
+        """Refresh views after a CLI command completes.
+
+        Args:
+            command_category: The category of the command that ran
+                (e.g. "Data Management", "Data Processing", "Utilities").
+        """
         pass
