@@ -273,6 +273,35 @@ class AbstractCLIContextInterface(ABC):
         """Get list of known session IDs from the project."""
         pass
 
+    @abstractmethod
+    def get_tomo_types(self) -> List[str]:
+        """Get list of available tomogram types."""
+        pass
+
+    def get_selected_copick_object(self) -> Optional[Any]:
+        """Get the currently selected copick object from the tree/viewer.
+
+        Returns the copick model object (CopickPicks, CopickSegmentation,
+        CopickTomogram, etc.) for the currently selected UI element, or None.
+        Default returns None; platforms with a tree view should override.
+        """
+        return None
+
+    def connect_selection_changed(self, callback: Callable[[Any], None]) -> None:
+        """Connect to tree/viewer selection changes.
+
+        The callback receives the selected copick object when selection changes.
+        Default is a no-op; platforms with a tree view should override.
+        """
+        pass
+
+    def disconnect_selection_changed(self, callback: Callable[[Any], None]) -> None:
+        """Disconnect a previously connected selection callback.
+
+        Default is a no-op; platforms with a tree view should override.
+        """
+        pass
+
 
 class AbstractCLIRefreshInterface(ABC):
     """Abstract interface for refreshing views after CLI command execution.

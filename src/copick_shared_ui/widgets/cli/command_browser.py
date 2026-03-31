@@ -273,6 +273,55 @@ class ClickCommandBrowser(QWidget):
         self.form_layout.addWidget(form)
         self._current_form = form
 
+    def select_and_prefill(
+        self, schema: CommandSchema, uri: str = "", run_name: str = "", object_type: str = "",
+    ) -> None:
+        """Select a command and optionally pre-fill its matching URI and run name.
+
+        Called by the context menu to navigate to a tool form with the
+        selected tree item's URI and run already filled in.
+
+        Args:
+            schema: The command to select.
+            uri: The URI string to pre-fill.
+            run_name: The run name to pre-fill.
+            object_type: The copick object type of the URI (e.g. "picks", "tomogram").
+                Used to fill only URI fields that match this type.
+        """
+        self._show_form(schema)
+
+        # Select the command in the tree for visual feedback
+        for item_id, item_schema in self._item_to_schema.items():
+            if item_schema is schema:
+                self._select_tree_item_for_schema(schema)
+                break
+
+        # Pre-fill URI and run name
+        if self._current_form is not None:
+            if uri:
+                self._current_form.prefill_uri(uri, object_type=object_type)
+            if run_name:
+                self._current_form.prefill_run_name(run_name)
+
+    def _select_tree_item_for_schema(self, schema: CommandSchema) -> None:
+        """Select the tree item corresponding to a schema."""
+        iterator = self.command_tree.invisibleRootItem()
+        self._select_recursive(iterator, schema)
+
+    def _select_recursive(self, parent, schema: CommandSchema) -> bool:
+        for i in range(parent.childCount()):
+            child = parent.child(i)
+            if self._item_to_schema.get(id(child)) is schema:
+                self.command_tree.setCurrentItem(child)
+                return True
+            if self._select_recursive(child, schema):
+                return True
+        return False
+
+    def get_all_schemas(self) -> List[CommandSchema]:
+        """Return all discovered command schemas (flat list)."""
+        return self._all_schemas
+
     def cleanup(self) -> None:
         """Clean up resources."""
         if self._current_form is not None:

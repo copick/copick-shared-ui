@@ -204,6 +204,11 @@ class ClickCommandForm(QWidget):
 
         self._build_ui()
 
+        # Connect tree selection for URI pre-fill
+        self.context.connect_selection_changed(self._on_tree_selection_changed)
+        # Check if there's an initial selection
+        self._try_prefill_from_selection(self.context.get_selected_copick_object())
+
     def _build_ui(self) -> None:
         outer_layout = QVBoxLayout(self)
         outer_layout.setContentsMargins(0, 0, 0, 0)
@@ -461,8 +466,104 @@ class ClickCommandForm(QWidget):
         self.output_text.setVisible(False)
         self.output_label.setVisible(False)
 
+    def _on_tree_selection_changed(self, copick_obj: Any) -> None:
+        """Handle tree selection change — pre-fill matching URI fields."""
+        self._try_prefill_from_selection(copick_obj)
+
+    def _try_prefill_from_selection(self, copick_obj: Any) -> None:
+        """Pre-fill URI widgets and run name from the selected copick object."""
+        if copick_obj is None:
+            return
+
+        # Determine object type from copick model class
+        obj_type = self._get_copick_object_type(copick_obj)
+        if obj_type is None:
+            return
+
+        # Serialize to URI
+        try:
+            from copick.util.uri import serialize_copick_uri
+            uri = serialize_copick_uri(copick_obj)
+        except Exception:
+            return
+
+        # Extract and pre-fill run name
+        try:
+            run_name = None
+            if hasattr(copick_obj, "run") and copick_obj.run is not None:
+                run_name = copick_obj.run.name
+            elif hasattr(copick_obj, "voxel_spacing") and hasattr(copick_obj.voxel_spacing, "run"):
+                run_name = copick_obj.voxel_spacing.run.name
+            if run_name:
+                self.prefill_run_name(run_name)
+        except Exception:
+            pass
+
+        # Fill matching input/reference URI widgets
+        for param in self.schema.params:
+            if param.uri_meta is None:
+                continue
+            if param.uri_meta.role == "output":
+                continue  # Don't overwrite output URIs
+            if param.uri_meta.object_type not in (obj_type, "any"):
+                continue
+            if param.name in self._param_widgets:
+                _, _, set_val = self._param_widgets[param.name]
+                set_val(uri)
+
+    @staticmethod
+    def _get_copick_object_type(copick_obj: Any) -> Optional[str]:
+        """Map a copick model object to its URI object type string."""
+        cls_name = type(copick_obj).__name__
+        if "Picks" in cls_name:
+            return "picks"
+        elif "Mesh" in cls_name:
+            return "mesh"
+        elif "Segmentation" in cls_name:
+            return "segmentation"
+        elif "Tomogram" in cls_name:
+            return "tomogram"
+        elif "Features" in cls_name:
+            return "feature"
+        return None
+
+    def prefill_uri(self, uri: str, object_type: str = "") -> None:
+        """Pre-fill a URI widget matching the given object type.
+
+        When object_type is provided, only fills fields whose uri_meta.object_type
+        matches (or is "any"). This prevents e.g. a tomogram URI from being
+        stuffed into a picks input field.
+
+        Called externally by the context menu.
+        """
+        for param in self.schema.params:
+            if param.uri_meta is None:
+                continue
+            if param.uri_meta.role == "output":
+                continue
+            if object_type and param.uri_meta.object_type not in (object_type, "any"):
+                continue
+            if param.name in self._param_widgets:
+                _, _, set_val = self._param_widgets[param.name]
+                set_val(uri)
+                return
+
+    def prefill_run_name(self, run_name: str) -> None:
+        """Pre-fill run name / run_names fields with the given run name.
+
+        Called externally by the context menu so the tool operates on
+        the same run the selected annotation belongs to.
+        """
+        for param in self.schema.params:
+            if param.auto_fill_type in ("run_names",) or param.name in ("run", "run_names"):
+                if param.name in self._param_widgets:
+                    _, _, set_val = self._param_widgets[param.name]
+                    set_val(run_name)
+                    return
+
     def cleanup(self) -> None:
-        """Stop any active worker."""
+        """Stop any active worker and disconnect signals."""
+        self.context.disconnect_selection_changed(self._on_tree_selection_changed)
         if self._active_worker is not None and hasattr(self._active_worker, "quit"):
             self._active_worker.quit()
             self._active_worker = None

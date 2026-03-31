@@ -9,6 +9,12 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import click
 
+# Import CopickURI type — optional, only needed for detection
+try:
+    from copick.cli.types import CopickURI as _CopickURIType
+except ImportError:
+    _CopickURIType = None
+
 
 # Parameter names that should be auto-filled from project context (hidden from UI)
 _HIDDEN_PARAMS = {"config", "debug"}
@@ -21,6 +27,9 @@ _AUTO_FILL_MAP = {
     "run_names": "run_names",
     "user_id": "user_id",
     "session_id": "session_id",
+    "voxel_spacing": "voxel_spacing",
+    "mesh_voxel_spacing": "voxel_spacing",
+    "voxel_size": "voxel_spacing",
 }
 
 # Commands that don't make sense in a GUI context
@@ -28,11 +37,19 @@ UI_EXCLUDED_COMMANDS = {"browse", "info", "config", "stats", "deposit"}
 
 
 @dataclass
+class URIParamMeta:
+    """Metadata for a URI parameter, extracted from CopickURI type."""
+
+    object_type: str  # "picks", "mesh", "segmentation", "tomogram", "feature", "any"
+    role: str  # "input", "output", "reference"
+
+
+@dataclass
 class ParamSchema:
     """Schema for a single Click parameter."""
 
     name: str
-    param_type: str  # "string", "int", "float", "bool", "choice", "path"
+    param_type: str  # "string", "int", "float", "bool", "choice", "path", "uri"
     human_name: str
     help: str
     required: bool
@@ -43,8 +60,9 @@ class ParamSchema:
     group_name: Optional[str]
     is_argument: bool
     secondary_name: Optional[str]  # For flag pairs like --overwrite/--no-overwrite
-    auto_fill_type: Optional[str]  # "config", "run_names", "user_id", etc.
+    auto_fill_type: Optional[str]  # "config", "run_names", "user_id", "uri_*", etc.
     opt_strings: List[str] = field(default_factory=list)  # e.g. ["-r", "--run-names"]
+    uri_meta: Optional[URIParamMeta] = None  # Set when param type is CopickURI
 
 
 @dataclass
@@ -79,6 +97,8 @@ def _normalize_type(param: click.Parameter) -> str:
     """Map Click parameter type to normalized type string."""
     ptype = param.type
 
+    if _CopickURIType is not None and isinstance(ptype, _CopickURIType):
+        return "uri"
     if isinstance(ptype, click.Choice):
         return "choice"
     if isinstance(ptype, click.Path):
@@ -174,6 +194,15 @@ def _extract_param_schema(param: click.Parameter) -> Optional[ParamSchema]:
     if param_type == "string" and not is_argument and _looks_like_path(param):
         param_type = "path"
 
+    # Extract URI metadata from CopickURI type
+    uri_meta = None
+    if _CopickURIType is not None and isinstance(param.type, _CopickURIType):
+        uri_meta = URIParamMeta(
+            object_type=param.type.object_type,
+            role=param.type.role,
+        )
+        auto_fill_type = f"uri_{uri_meta.object_type}_{uri_meta.role}"
+
     return ParamSchema(
         name=param.name,
         param_type=param_type,
@@ -189,6 +218,7 @@ def _extract_param_schema(param: click.Parameter) -> Optional[ParamSchema]:
         secondary_name=secondary_name,
         auto_fill_type=auto_fill_type,
         opt_strings=opt_strings,
+        uri_meta=uri_meta,
     )
 
 
@@ -323,3 +353,32 @@ def discover_commands_by_category() -> Dict[str, List[CommandSchema]]:
     for schema in schemas:
         by_category.setdefault(schema.category, []).append(schema)
     return by_category
+
+
+def get_applicable_commands(
+    schemas: List[CommandSchema],
+    object_type: str,
+) -> List[CommandSchema]:
+    """Return commands that accept the given object_type as input or reference.
+
+    Used by the actions bar and context menu to show applicable tools
+    for a selected tree item.
+
+    Args:
+        schemas: All discovered command schemas.
+        object_type: The copick object type to match (e.g. "picks", "segmentation").
+
+    Returns:
+        Commands that have at least one URI param accepting this object type.
+    """
+    results = []
+    for schema in schemas:
+        for param in schema.params:
+            if (
+                param.uri_meta is not None
+                and param.uri_meta.object_type in (object_type, "any")
+                and param.uri_meta.role in ("input", "reference")
+            ):
+                results.append(schema)
+                break
+    return results

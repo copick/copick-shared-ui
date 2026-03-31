@@ -131,7 +131,15 @@ def _create_int_widget(
 ) -> ParamWidgetResult:
     """Create a QSpinBox for integer parameters."""
     widget = QSpinBox(parent)
-    widget.setRange(-999999, 999999)
+    # Default to non-negative; allow negative only if the default is negative
+    min_val = 0
+    if param.default is not None:
+        try:
+            if int(param.default) < 0:
+                min_val = -999999
+        except (ValueError, TypeError):
+            pass
+    widget.setRange(min_val, 999999)
     if param.default is not None:
         try:
             widget.setValue(int(param.default))
@@ -157,7 +165,15 @@ def _create_float_widget(
 ) -> ParamWidgetResult:
     """Create a QDoubleSpinBox for float parameters."""
     widget = QDoubleSpinBox(parent)
-    widget.setRange(-999999.0, 999999.0)
+    # Default to non-negative; allow negative only if the default is negative
+    min_val = 0.0
+    if param.default is not None:
+        try:
+            if float(param.default) < 0:
+                min_val = -999999.0
+        except (ValueError, TypeError):
+            pass
+    widget.setRange(min_val, 999999.0)
     widget.setDecimals(4)
     widget.setSingleStep(0.1)
     if param.default is not None:
@@ -237,6 +253,22 @@ def _create_path_widget(
     return container, get_value, set_value
 
 
+def _create_uri_widget(
+    param: ParamSchema,
+    context: AbstractCLIContextInterface,
+    parent: Optional[QWidget] = None,
+) -> ParamWidgetResult:
+    """Create a CopickURIWidget for URI parameters."""
+    from copick_shared_ui.widgets.cli.uri_widget import CopickURIWidget
+
+    widget = CopickURIWidget(
+        uri_meta=param.uri_meta,
+        context=context,
+        parent=parent,
+    )
+    return widget, widget.get_value, widget.set_value
+
+
 def create_param_widget(
     param: ParamSchema,
     context: Optional[AbstractCLIContextInterface] = None,
@@ -247,6 +279,10 @@ def create_param_widget(
     Returns:
         Tuple of (widget, get_value_callable, set_value_callable).
     """
+    # URI widgets (must check before other auto-fill types)
+    if param.uri_meta is not None and context is not None:
+        return _create_uri_widget(param, context, parent=parent)
+
     # Context-aware auto-fill widgets
     if context is not None and param.auto_fill_type:
         af = param.auto_fill_type
@@ -261,6 +297,11 @@ def create_param_widget(
         elif af == "session_id":
             items = context.get_session_ids()
             if items:
+                return _create_combobox_widget(param, items, editable=True, parent=parent)
+        elif af == "voxel_spacing":
+            spacings = context.get_voxel_spacings()
+            if spacings:
+                items = [str(v) for v in spacings]
                 return _create_combobox_widget(param, items, editable=True, parent=parent)
 
     # Type-based widget selection
