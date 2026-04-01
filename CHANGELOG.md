@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0](https://github.com/copick/copick-shared-ui/compare/copick-shared-ui-v0.4.0...copick-shared-ui-v0.5.0) (2026-04-01)
+
+
+### ✨ Features
+
+* Update Requirements ([e352efc](https://github.com/copick/copick-shared-ui/commit/e352efcc83acff7eaeca479e2c264c59584305e1))
+
 ## [0.4.0](https://github.com/copick/copick-shared-ui/compare/copick-shared-ui-v0.3.0...copick-shared-ui-v0.4.0) (2026-03-31)
 
 
