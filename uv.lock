@@ -611,7 +611,7 @@ wheels = [
 
 [[package]]
 name = "copick"
-version = "1.25.2"
+version = "1.25.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiohttp" },
@@ -649,9 +649,9 @@ dependencies = [
     { name = "zarr", version = "2.18.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "zarr", version = "2.18.7", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/a1/d1/b3440797c89cf5866bddb114abe97155d74a608cd581a65fae5816059470/copick-1.25.2.tar.gz", hash = "sha256:0e3db3d3cffb245a562144e2d3c3489733291c634e4fdaa0f583d25647bb211e", size = 47774673, upload-time = "2026-06-29T15:22:31.976Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/b1/ae/53db20b3ad6d4e6fb314c52ba277555050ecac938733742a5b6d35c9cd3f/copick-1.25.3.tar.gz", hash = "sha256:f48d706d853a5913a4369bf7bcbbca825357f3cb9d6f35189af8c311c5e35a1c", size = 47780560, upload-time = "2026-07-07T01:00:04.124Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/7f/70/6c6ac2fd876455b956f054eeb893869213fc31a24a7868fe464d4df86225/copick-1.25.2-py3-none-any.whl", hash = "sha256:cc5e784a608ca65e85dbd5f35ab770a604a22556042627d47c8d93db24bd5b54", size = 218452, upload-time = "2026-06-29T15:22:29.753Z" },
+    { url = "https://files.pythonhosted.org/packages/cb/61/b7ef1e5b51bdb5616d7f086a18bc8f89a725168394a28d8c754d55b70347/copick-1.25.3-py3-none-any.whl", hash = "sha256:ef31626ab9b40ebb471be6c4795361dffd61a0d430313ff2701a325c1dacae08", size = 222005, upload-time = "2026-07-07T01:00:01.072Z" },
 ]
 
 [package.optional-dependencies]
@@ -695,7 +695,7 @@ testing = [
 [package.metadata]
 requires-dist = [
     { name = "black", marker = "extra == 'dev'", specifier = ">=25.1.0" },
-    { name = "copick", extras = ["all"], specifier = ">=1.23.1" },
+    { name = "copick", extras = ["all"], specifier = ">=1.25.3" },
     { name = "hatch-vcs", marker = "extra == 'dev'", specifier = ">=0.4.0" },
     { name = "hatchling", marker = "extra == 'dev'", specifier = ">=1.25.0" },
     { name = "numpy", specifier = ">=1.21.0" },
