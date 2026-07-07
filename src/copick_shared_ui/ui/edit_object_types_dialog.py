@@ -317,10 +317,13 @@ class EditObjectTypesDialog(QDialog):
         self._pdb_edit.setToolTip("PDB ID for this object type")
         right_layout.addRow("PDB ID:", self._pdb_edit)
 
-        # Identifier (GO/UniProt)
+        # Identifier (GO/UniProtKB/CHEBI/PDB/UBERON/CL/CDPO)
         self._identifier_edit = QLineEdit()
-        self._identifier_edit.setPlaceholderText("e.g., GO:0005840 or P12345")
-        self._identifier_edit.setToolTip("Gene Ontology ID or UniProtKB accession")
+        self._identifier_edit.setPlaceholderText("e.g., GO:0005840, UniProtKB:P0CX35, CHEBI:15986, PDB-1BXN")
+        self._identifier_edit.setToolTip(
+            "Ontology/database identifier for this object type.\n"
+            "Supported namespaces: GO, UniProtKB, CHEBI, PDB (dash separator), UBERON, CL, CDPO.",
+        )
         right_layout.addRow("Identifier:", self._identifier_edit)
 
         # Map threshold
