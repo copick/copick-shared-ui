@@ -1,6 +1,6 @@
 """Copick shared UI components for cross-platform visualization."""
 
-__version__ = "0.7.0"
+__version__ = "0.6.0"
 
 # Core components
 from copick_shared_ui.core import (
