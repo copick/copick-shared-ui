@@ -392,10 +392,6 @@ class CopickGalleryWidget(QWidget):
         # RunCard is a fixed size).
         if cols == self._grid_last_cols:
             return
-        # DEBUG: fires only when the column count actually changes -- during a drag
-        # this should print rarely (once per ~235px), confirming resize is now a
-        # no-op on the common path. Remove once verified.
-        print(f"🔧 Gallery: reflowing grid {self._grid_last_cols} -> {cols} cols ({len(self.visible_run_cards)} cards)")
         self._grid_last_cols = cols
 
         # Preserve on-screen order (filtered_runs order, as populated by _update_grid).
