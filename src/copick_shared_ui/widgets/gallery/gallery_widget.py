@@ -49,7 +49,10 @@ class CopickGalleryWidget(QWidget):
         self.visible_run_cards: Dict[str, RunCard] = {}  # run_name -> RunCard (currently visible)
         self.search_filter: str = ""
         self.thumbnail_cache: Dict[str, Any] = {}  # run_name -> pixmap (thumbnail cache)
-        self._grid_dirty: bool = True  # Flag to track if grid needs updating
+        self._grid_dirty: bool = True  # Flag to track if grid needs updating (data path)
+        # Last column count the grid was laid out at. Resize only reflows when this
+        # changes (mirrors info_widget._tomo_grid_last_cols); None forces a first layout.
+        self._grid_last_cols: Optional[int] = None
 
         # Track widget lifecycle
         self._is_destroyed: bool = False
@@ -140,6 +143,7 @@ class CopickGalleryWidget(QWidget):
         self.visible_run_cards.clear()
         self.thumbnail_cache.clear()
         self._grid_dirty = True
+        self._grid_last_cols = None  # new run set -> force a fresh layout
 
         self.copick_root = copick_root
         if copick_root:
@@ -191,6 +195,15 @@ class CopickGalleryWidget(QWidget):
         self.empty_label.setVisible(True)
         self.grid_widget.setVisible(False)
 
+    def _compute_cards_per_row(self) -> int:
+        """Number of card columns that fit the current scroll-area width.
+
+        Derived from the scroll area (not self.width()) so the resize guard in
+        _reflow_grid compares against the same width the layout uses. 235 = 220px
+        fixed card width + 15px grid spacing; 30 leaves room for margins/scrollbar.
+        """
+        return max(1, (self.scroll_area.width() - 30) // 235)
+
     def _update_grid(self) -> None:
         """Update the grid with current filtered runs using cached cards."""
         if self._is_destroyed:
@@ -206,13 +219,14 @@ class CopickGalleryWidget(QWidget):
         if not self.filtered_runs:
             self.empty_label.setVisible(True)
             self.grid_widget.setVisible(False)
+            self._grid_last_cols = None
             return
 
         self.empty_label.setVisible(False)
         self.grid_widget.setVisible(True)
 
         # Calculate grid dimensions
-        cards_per_row = max(1, (self.scroll_area.width() - 30) // 235)  # 220 card width + 15 spacing
+        cards_per_row = self._compute_cards_per_row()
 
         # Add cards for filtered runs (reuse cached cards where possible)
         for i, run in enumerate(self.filtered_runs):
@@ -242,8 +256,10 @@ class CopickGalleryWidget(QWidget):
             self.visible_run_cards[run.name] = card
             self.grid_layout.addWidget(card, row, col)
 
-        # Mark grid as clean
+        # Mark grid as clean and remember the column count so a subsequent resize
+        # that does not change it can skip the reflow entirely.
         self._grid_dirty = False
+        self._grid_last_cols = cards_per_row
 
     def _load_run_thumbnail(self, run: "CopickRun", thumbnail_id: str, force_regenerate: bool = False) -> None:
         """Start async loading of run thumbnail."""
@@ -359,10 +375,61 @@ class CopickGalleryWidget(QWidget):
             if run.name in self.all_run_cards:
                 self._load_run_thumbnail(run, run.name, force_regenerate=True)
 
-    def resizeEvent(self, event: Any) -> None:
-        """Handle widget resize to update grid layout."""
-        super().resizeEvent(event)
-        # Mark grid as dirty and trigger update to recalculate cards per row
-        if self.filtered_runs:
+    def _reflow_grid(self) -> None:
+        """Reposition already-visible cards into a new column count on resize.
+
+        This is the cheap resize path (mirrors info_widget._reflow_tomo_grids):
+        it never recreates cards, never toggles grid visibility, and early-returns
+        when the column count is unchanged -- so the vast majority of drag-resize
+        events (which do not cross a ~235px column threshold) do no work at all.
+        """
+        if self._is_destroyed or not self.visible_run_cards:
+            return
+
+        cols = self._compute_cards_per_row()
+        # resizeEvent fires on every pixel; only relayout when the column count
+        # actually changes (the grid is otherwise byte-for-byte identical because
+        # RunCard is a fixed size).
+        if cols == self._grid_last_cols:
+            return
+        # DEBUG: fires only when the column count actually changes -- during a drag
+        # this should print rarely (once per ~235px), confirming resize is now a
+        # no-op on the common path. Remove once verified.
+        print(f"🔧 Gallery: reflowing grid {self._grid_last_cols} -> {cols} cols ({len(self.visible_run_cards)} cards)")
+        self._grid_last_cols = cols
+
+        # Preserve on-screen order (filtered_runs order, as populated by _update_grid).
+        cards = [self.all_run_cards[run.name] for run in self.filtered_runs if run.name in self.all_run_cards]
+
+        # Batch repaints at the viewport (grid_widget's parent, so it also covers
+        # the scrollbar) so the intermediate detached state is never painted;
+        # finally guarantees re-enable even if a card was deleted underneath us.
+        viewport = self.scroll_area.viewport()
+        viewport.setUpdatesEnabled(False)
+        try:
+            # removeWidget (not setParent(None)) repositions without reparenting or
+            # hiding the card, which is what causes the resize flicker today.
+            for card in cards:
+                self.grid_layout.removeWidget(card)
+            for i, card in enumerate(cards):
+                self.grid_layout.addWidget(card, i // cols, i % cols)
+        except RuntimeError:
+            # A cached card was deleted underneath us; force a full rebuild below.
+            self._grid_last_cols = None
             self._grid_dirty = True
+        finally:
+            viewport.setUpdatesEnabled(True)
+
+        if self._grid_dirty:
             self._update_grid()
+
+    def resizeEvent(self, event: Any) -> None:  # noqa: N802 (Qt override)
+        """Handle widget resize by reflowing the grid only when the column count changes.
+
+        The heavy _update_grid teardown/rebuild is intentionally NOT run here; the
+        data path (set_copick_root / search filter) owns that. _reflow_grid just
+        repositions the cached cards in place and no-ops on an unchanged column
+        count, so a continuous drag-resize does almost no work and does not flicker.
+        """
+        super().resizeEvent(event)
+        self._reflow_grid()
