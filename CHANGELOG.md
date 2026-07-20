@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.7.0](https://github.com/copick/copick-shared-ui/compare/copick-shared-ui-v0.6.0...copick-shared-ui-v0.7.0) (2026-07-20)
+
+
+### ✨ Features
+
+* Allow napari-copick to shrink beyond its current minimum width. ([#31](https://github.com/copick/copick-shared-ui/issues/31)) ([e40c199](https://github.com/copick/copick-shared-ui/commit/e40c19915ddfe6218192ee192e8cb548eb79523c))
+
+
+### 🐞 Bug Fixes
+
+* bump chanzuckerberg/github-actions from 6.29.4 to 6.30.1 ([#27](https://github.com/copick/copick-shared-ui/issues/27)) ([b8cf693](https://github.com/copick/copick-shared-ui/commit/b8cf69322cb8c0fae7846d4acf046dd79ef9d32c))
+* bump googleapis/release-please-action from 4 to 5 ([#25](https://github.com/copick/copick-shared-ui/issues/25)) ([ffc634b](https://github.com/copick/copick-shared-ui/commit/ffc634bebffca3f395223cd0fab2a0a92af3cfe9))
+* bump ruff from 0.15.20 to 0.15.21 ([#28](https://github.com/copick/copick-shared-ui/issues/28)) ([c6bcea1](https://github.com/copick/copick-shared-ui/commit/c6bcea10dcbc7df2d9a437e832c3b2e379c14d84))
+* bump tox from 4.56.1 to 4.56.4 ([#29](https://github.com/copick/copick-shared-ui/issues/29)) ([b170ac2](https://github.com/copick/copick-shared-ui/commit/b170ac26a3204b5f6cac9d5e0ea146bffeacd3d1))
+* Simplify Gallery view relayouting. ([#32](https://github.com/copick/copick-shared-ui/issues/32)) ([2ff31f0](https://github.com/copick/copick-shared-ui/commit/2ff31f0057d552ec52a151b5df91f9918502f15f))
+
 ## [0.6.0](https://github.com/copick/copick-shared-ui/compare/copick-shared-ui-v0.5.0...copick-shared-ui-v0.6.0) (2026-07-07)
 
 
