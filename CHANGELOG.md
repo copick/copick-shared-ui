@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.6.0](https://github.com/copick/copick-shared-ui/compare/copick-shared-ui-v0.5.0...copick-shared-ui-v0.6.0) (2026-07-07)
+
+
+### ✨ Features
+
+* update copick deps ([#24](https://github.com/copick/copick-shared-ui/issues/24)) ([04f7764](https://github.com/copick/copick-shared-ui/commit/04f7764d687c812aaa4316ee1464a5c009aaf21c))
+
+
+### 🐞 Bug Fixes
+
+* bump actions/checkout from 3 to 7 ([#18](https://github.com/copick/copick-shared-ui/issues/18)) ([911cf10](https://github.com/copick/copick-shared-ui/commit/911cf1053412a22f4ade4864a2588524f035357e))
+* bump actions/setup-python from 4 to 6 ([#22](https://github.com/copick/copick-shared-ui/issues/22)) ([f01b543](https://github.com/copick/copick-shared-ui/commit/f01b54384d7da2440f6b70d0da4c02b63c495b25))
+* bump asdf-vm/actions from 3 to 4 ([#19](https://github.com/copick/copick-shared-ui/issues/19)) ([90d9cd4](https://github.com/copick/copick-shared-ui/commit/90d9cd490f02dae1d806ca0668597ef64655ef7d))
+* bump astral-sh/setup-uv from 6 to 7 ([#20](https://github.com/copick/copick-shared-ui/issues/20)) ([4063698](https://github.com/copick/copick-shared-ui/commit/4063698f0dc0f698aa84b3b70962c15bd3ee0b75))
+* bump chanzuckerberg/github-actions from 6.4.0 to 6.29.4 ([#21](https://github.com/copick/copick-shared-ui/issues/21)) ([e1bb806](https://github.com/copick/copick-shared-ui/commit/e1bb806dcd8712f3fe47077954abdd18de18ff74))
+* Support new annotation object id types and paginate queries. ([#16](https://github.com/copick/copick-shared-ui/issues/16)) ([9d5bef3](https://github.com/copick/copick-shared-ui/commit/9d5bef3cfae4e381ffd7f3da4d5c414cd00f5c89))
+
+
+### 🧹 Miscellaneous Chores
+
+* Add dependabot alerts. ([#17](https://github.com/copick/copick-shared-ui/issues/17)) ([cfbfccb](https://github.com/copick/copick-shared-ui/commit/cfbfccbf269bd4c8a40040b1b3fea4090ea3d262))
+
 ## [0.5.0](https://github.com/copick/copick-shared-ui/compare/copick-shared-ui-v0.4.0...copick-shared-ui-v0.5.0) (2026-04-01)
 
 
