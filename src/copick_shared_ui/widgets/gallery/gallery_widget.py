@@ -70,20 +70,26 @@ class CopickGalleryWidget(QWidget):
         header_layout = QHBoxLayout()
 
         title_label = QLabel("📸 Run Gallery", objectName="gallery_title_label")
+        # Word-wrap so the title collapses to its widest word instead of pinning a
+        # ~150px minimum on the header (which sits outside the scroll area).
+        title_label.setWordWrap(True)
         header_layout.addWidget(title_label)
 
         header_layout.addStretch()
 
-        # Regenerate thumbnails button
-        self.regenerate_button = QPushButton("🔄 Regenerate Thumbnails", objectName="regenerate_thumbnails_button")
+        # Regenerate thumbnails button — icon-only so the header stays narrow on
+        # small screens (the action is described by the tooltip).
+        self.regenerate_button = QPushButton("🔄", objectName="regenerate_thumbnails_button")
         self.regenerate_button.setToolTip("Clear cache and regenerate all thumbnails")
         self.regenerate_button.clicked.connect(self._on_regenerate_thumbnails)
         header_layout.addWidget(self.regenerate_button)
 
-        # Search box
+        # Search box — allow it to shrink on narrow docks instead of pinning a
+        # fixed 200px width; cap it so it does not hog the header in wide views.
         self.search_box = QLineEdit(objectName="gallery_search_input")
         self.search_box.setPlaceholderText("Search runs...")
-        self.search_box.setFixedWidth(200)
+        self.search_box.setMinimumWidth(80)
+        self.search_box.setMaximumWidth(200)
         self.search_box.textChanged.connect(self._on_search_changed)
         header_layout.addWidget(self.search_box)
 

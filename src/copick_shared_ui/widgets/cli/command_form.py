@@ -137,6 +137,9 @@ def _make_param_label(param: ParamSchema) -> QWidget:
     layout.setSpacing(2)
 
     label = QLabel(name)
+    # Wrap long humanized parameter names; the form's scroll area has horizontal
+    # scrolling disabled, so a non-wrapping label would pin the form's min width.
+    label.setWordWrap(True)
     layout.addWidget(label)
 
     has_info = bool(param.help) or param.default is not None
@@ -238,7 +241,7 @@ class ClickCommandForm(QWidget):
         if argument_params:
             args_group = QGroupBox("Arguments")
             args_form = QFormLayout(args_group)
-            args_form.setRowWrapPolicy(QFormLayout.WrapLongRows)
+            args_form.setRowWrapPolicy(QFormLayout.WrapAllRows)
             args_form.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)
             for param in argument_params:
                 widget, get_val, set_val = create_param_widget(
@@ -260,7 +263,7 @@ class ClickCommandForm(QWidget):
 
                 group_box = QGroupBox(group.name)
                 form = QFormLayout(group_box)
-                form.setRowWrapPolicy(QFormLayout.WrapLongRows)
+                form.setRowWrapPolicy(QFormLayout.WrapAllRows)
                 form.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)
 
                 for param in visible_params:
@@ -280,7 +283,7 @@ class ClickCommandForm(QWidget):
             if option_params:
                 options_group = QGroupBox("Options")
                 form = QFormLayout(options_group)
-                form.setRowWrapPolicy(QFormLayout.WrapLongRows)
+                form.setRowWrapPolicy(QFormLayout.WrapAllRows)
                 form.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)
                 for param in option_params:
                     widget, get_val, set_val = create_param_widget(
@@ -308,7 +311,7 @@ class ClickCommandForm(QWidget):
             self.dry_run_btn.clicked.connect(self._on_dry_run)
             btn_layout.addWidget(self.dry_run_btn)
 
-        self.reset_btn = QPushButton("\u21ba Reset Defaults")
+        self.reset_btn = QPushButton("\u21ba Reset")
         self.reset_btn.clicked.connect(self._reset_defaults)
         btn_layout.addWidget(self.reset_btn)
 

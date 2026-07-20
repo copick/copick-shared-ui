@@ -166,18 +166,23 @@ class AbstractThumbnailWorker(ABC):
                         if cached_pixmap is not None:
                             return cached_pixmap, None
 
-                    # Find the specific tomogram matching the cached info
-                    for tomo in run.tomograms:
-                        try:
-                            if (
-                                tomo.tomo_type == best_info["tomogram_type"]
-                                and abs(tomo.voxel_spacing.voxel_size - best_info["voxel_spacing"]) < 0.001
-                            ):
-                                tomogram = tomo
-                                break
-                        except Exception as e:
-                            print(f"⚠️ Error checking tomogram: {e}")
-                            continue
+                    # Find the specific tomogram matching the cached info.
+                    # Tomograms live under voxel spacings (CopickRun has no
+                    # .tomograms attribute), matching _select_best_tomogram above.
+                    for vs in run.voxel_spacings:
+                        for tomo in vs.tomograms:
+                            try:
+                                if (
+                                    tomo.tomo_type == best_info["tomogram_type"]
+                                    and abs(tomo.voxel_spacing.voxel_size - best_info["voxel_spacing"]) < 0.001
+                                ):
+                                    tomogram = tomo
+                                    break
+                            except Exception as e:
+                                print(f"⚠️ Error checking tomogram: {e}")
+                                continue
+                        if tomogram is not None:
+                            break
 
             # If no cached best tomogram info or force regenerating, select best tomogram
             if tomogram is None:
