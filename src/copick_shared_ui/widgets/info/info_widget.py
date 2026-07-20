@@ -2,7 +2,7 @@
 
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
-from qtpy.QtCore import Qt, Signal, Slot
+from qtpy.QtCore import QSize, Qt, Signal, Slot
 from qtpy.QtGui import QFont
 from qtpy.QtWidgets import (
     QFrame,
@@ -25,6 +25,52 @@ from copick_shared_ui.core.models import (
 
 if TYPE_CHECKING:
     from copick.models import CopickRun, CopickTomogram, CopickVoxelSpacing
+
+
+class _ScaledThumbnailLabel(QLabel):
+    """QLabel that rescales its source pixmap to its current size (keeping the
+    aspect ratio) while reporting a small minimum size.
+
+    This decouples the rendered thumbnail size from the card's minimum width:
+    the card can shrink on narrow docks (napari on small screens) without the
+    pixmap's natural size pinning a wide minimum, yet the thumbnail is still
+    rendered crisp and large when the card has room (e.g. ChimeraX's
+    full-width central view).
+    """
+
+    # Cap upscaling at the thumbnail generation size to avoid blur.
+    _MAX_RENDER_PX = 200
+
+    def __init__(self, image_interface: AbstractImageInterface, parent: Optional[QWidget] = None) -> None:
+        super().__init__(parent)
+        self._image_interface = image_interface
+        self._source_pixmap: Optional[Any] = None
+        self.setMinimumSize(1, 1)
+        self.setAlignment(Qt.AlignCenter)
+
+    def set_source_pixmap(self, pixmap: Any) -> None:
+        """Store the original pixmap and render it scaled to the current size."""
+        self._source_pixmap = pixmap
+        self._rescale()
+
+    def minimumSizeHint(self) -> QSize:  # noqa: N802 (Qt override)
+        return QSize(40, 40)
+
+    def sizeHint(self) -> QSize:  # noqa: N802 (Qt override)
+        return QSize(120, 120)
+
+    def resizeEvent(self, event: Any) -> None:  # noqa: N802 (Qt override)
+        super().resizeEvent(event)
+        self._rescale()
+
+    def _rescale(self) -> None:
+        if self._source_pixmap is None:
+            return
+        target = min(self.width(), self.height(), self._MAX_RENDER_PX)
+        if target <= 0:
+            return
+        scaled = self._image_interface.scale_pixmap(self._source_pixmap, (target, target), smooth=True)
+        super().setPixmap(scaled)
 
 
 class CopickInfoWidget(QWidget):
@@ -60,6 +106,11 @@ class CopickInfoWidget(QWidget):
         # Thumbnail cache and widgets
         self._thumbnails: Dict[str, Any] = {}
         self._thumbnail_widgets: Dict[str, QFrame] = {}
+
+        # Tracked (grid_layout, cards) pairs so tomogram grids can be reflowed
+        # to a responsive column count on resize.
+        self._tomo_grids: List[Any] = []
+        self._tomo_grid_last_cols: Optional[int] = None
 
         self._setup_ui()
         self._apply_styling()
@@ -120,7 +171,9 @@ class CopickInfoWidget(QWidget):
     def _create_header(self, layout: QVBoxLayout) -> None:
         """Create the header section."""
         header_widget = QWidget()
-        header_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        # Preferred (not Fixed) vertical policy so the header can grow to fit
+        # the word-wrapped title / run-name labels on very narrow docks.
+        header_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         header_layout = QVBoxLayout()
         header_layout.setContentsMargins(10, 10, 10, 15)
         header_layout.setSpacing(8)
@@ -132,7 +185,7 @@ class CopickInfoWidget(QWidget):
         top_row.setSpacing(10)
 
         # Back to gallery button
-        self._back_to_gallery_button = QPushButton("📸 Back to Gallery")
+        self._back_to_gallery_button = QPushButton("📸 Gallery")
         self._back_to_gallery_button.setToolTip("Return to gallery view")
         self._back_to_gallery_button.clicked.connect(self._on_back_to_gallery)
 
@@ -143,7 +196,8 @@ class CopickInfoWidget(QWidget):
         title_font.setBold(True)
         title_label.setFont(title_font)
         title_label.setAlignment(Qt.AlignCenter)
-        title_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        title_label.setWordWrap(True)
+        title_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
 
         # Add to top row
         top_row.addWidget(self._back_to_gallery_button)
@@ -151,9 +205,12 @@ class CopickInfoWidget(QWidget):
         top_row.addWidget(title_label)
         top_row.addStretch()
 
-        # Add invisible placeholder widget to balance the button on the left
+        # Collapsible placeholder to balance the back button (keeping the title
+        # centred) when there is room, but which shrinks to zero on narrow docks
+        # so it does not pin a wide minimum width.
         placeholder = QWidget()
-        placeholder.setFixedSize(self._back_to_gallery_button.sizeHint())
+        placeholder.setMaximumWidth(self._back_to_gallery_button.sizeHint().width())
+        placeholder.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
         top_row.addWidget(placeholder)
 
         header_layout.addLayout(top_row)
@@ -165,7 +222,8 @@ class CopickInfoWidget(QWidget):
         name_font.setBold(True)
         self._run_name_label.setFont(name_font)
         self._run_name_label.setAlignment(Qt.AlignCenter)
-        self._run_name_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self._run_name_label.setWordWrap(True)
+        self._run_name_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         header_layout.addWidget(self._run_name_label)
 
         header_widget.setLayout(header_layout)
@@ -175,7 +233,10 @@ class CopickInfoWidget(QWidget):
         """Create the footer hint."""
         footer_label = QLabel("💡 Click on tomogram cards to load them in the viewer")
         footer_label.setAlignment(Qt.AlignCenter)
-        footer_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        # Word-wrap so this hint (which sits outside the scroll area) does not pin
+        # a wide minimum width on the whole widget.
+        footer_label.setWordWrap(True)
+        footer_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         self.footer_label = footer_label
         layout.addWidget(footer_label, 0)
 
@@ -292,6 +353,10 @@ class CopickInfoWidget(QWidget):
         # Clear thumbnail widget references since widgets are being deleted
         self._thumbnail_widgets.clear()
 
+        # Reset tracked tomogram grids (their widgets are deleted above)
+        self._tomo_grids = []
+        self._tomo_grid_last_cols = None
+
         if self.current_run:
             # Add voxel spacings section with nested tomograms
             self._add_voxel_spacings_section()
@@ -323,6 +388,7 @@ class CopickInfoWidget(QWidget):
         header_layout.setContentsMargins(0, 0, 0, 0)
 
         title_label = QLabel("📏 Voxel Spacings & Tomograms")
+        title_label.setWordWrap(True)
         title_font = QFont()
         title_font.setPointSize(13)
         title_font.setBold(True)
@@ -604,6 +670,7 @@ class CopickInfoWidget(QWidget):
         header_layout.setContentsMargins(0, 0, 0, 0)
 
         header_label = QLabel(f"📏 Voxel Spacing {voxel_spacing.voxel_size:.2f}Å")
+        header_label.setWordWrap(True)
         header_font = QFont()
         header_font.setPointSize(12)
         header_font.setBold(True)
@@ -626,15 +693,13 @@ class CopickInfoWidget(QWidget):
             tomo_grid_layout.setContentsMargins(15, 0, 0, 0)
             tomo_grid_layout.setSpacing(8)
 
-            # Calculate grid dimensions (3 columns)
-            cols = 3
-
-            for i, tomo in enumerate(tomograms):
-                row = i // cols
-                col = i % cols
-
-                tomo_card = self._create_tomogram_card(tomo)
-                tomo_grid_layout.addWidget(tomo_card, row, col)
+            # Build the cards, then lay them out with a responsive column count.
+            # The grid is reflowed on resize (see resizeEvent) so it collapses to
+            # a single column on narrow docks and fans out to multiple columns
+            # when there is room (e.g. ChimeraX's wide central view).
+            tomo_cards = [self._create_tomogram_card(tomo) for tomo in tomograms]
+            self._layout_tomo_cards(tomo_grid_layout, tomo_cards, self._tomo_grid_cols())
+            self._tomo_grids.append((tomo_grid_layout, tomo_cards))
 
             tomo_grid_widget.setLayout(tomo_grid_layout)
             layout.addWidget(tomo_grid_widget)
@@ -647,12 +712,57 @@ class CopickInfoWidget(QWidget):
         frame.setLayout(layout)
         return frame
 
+    # Approximate width of one tomogram-card slot (card min width + grid
+    # spacing), used to decide how many columns fit in the available width.
+    _TOMO_CARD_SLOT_PX = 120 + 8
+
+    def _tomo_grid_cols(self) -> int:
+        """Number of tomogram-card columns that fit in the current width."""
+        # Width available inside the scroll area for the (indented, nested)
+        # tomogram grid. Fall back to the widget width before the first layout.
+        avail = self._content_widget.width() or self.width()
+        # Subtract cumulative nested left/right margins + a scrollbar allowance.
+        avail -= 130
+        return max(1, avail // self._TOMO_CARD_SLOT_PX)
+
+    def _layout_tomo_cards(self, grid_layout: QGridLayout, cards: List[QWidget], cols: int) -> None:
+        """(Re)place ``cards`` into ``grid_layout`` using ``cols`` columns."""
+        for card in cards:
+            grid_layout.removeWidget(card)
+        for i, card in enumerate(cards):
+            grid_layout.addWidget(card, i // cols, i % cols)
+
+    def _reflow_tomo_grids(self) -> None:
+        """Recompute the column count for every tomogram grid on resize."""
+        if self._is_destroyed or not self._tomo_grids:
+            return
+        cols = self._tomo_grid_cols()
+        # resizeEvent fires on every pixel; only relayout (which is O(cards)) when
+        # the column count actually changes.
+        if cols == self._tomo_grid_last_cols:
+            return
+        self._tomo_grid_last_cols = cols
+        try:
+            for grid_layout, cards in self._tomo_grids:
+                self._layout_tomo_cards(grid_layout, cards, cols)
+        except RuntimeError:
+            # A tracked grid/card was deleted underneath us; drop stale refs.
+            self._tomo_grids = []
+            self._tomo_grid_last_cols = None
+
+    def resizeEvent(self, event: Any) -> None:  # noqa: N802 (Qt override)
+        """Reflow tomogram grids so the column count adapts to the width."""
+        super().resizeEvent(event)
+        self._reflow_tomo_grids()
+
     def _create_tomogram_card(self, tomogram: "CopickTomogram") -> QFrame:
         """Create a card widget for a tomogram with thumbnail."""
         card = QFrame(objectName="info_card")
         card.setFrameStyle(QFrame.StyledPanel)
         card.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        card.setMinimumSize(200, 240)
+        # Narrow minimum width so the card (and the whole info grid) can shrink
+        # on small screens; the thumbnail label scales independently.
+        card.setMinimumSize(120, 240)
         colors = self.theme_interface.get_theme_colors()
         card.setStyleSheet(
             f"""
@@ -672,12 +782,11 @@ class CopickInfoWidget(QWidget):
         layout.setContentsMargins(8, 8, 8, 8)
         layout.setSpacing(6)
 
-        # Thumbnail area
-        thumbnail_label = QLabel()
+        # Thumbnail area — self-scaling so the card can shrink on narrow docks
+        # while still rendering a crisp thumbnail when the card has room.
+        thumbnail_label = _ScaledThumbnailLabel(self.image_interface)
         thumbnail_label.setObjectName("thumbnail_label")
         thumbnail_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        thumbnail_label.setAlignment(Qt.AlignCenter)
-        thumbnail_label.setScaledContents(False)
         colors = self.theme_interface.get_theme_colors()
         thumbnail_label.setStyleSheet(
             f"""
@@ -694,11 +803,8 @@ class CopickInfoWidget(QWidget):
 
         # Check if thumbnail is already loaded
         if thumbnail_id in self._thumbnails:
-            # Use cached thumbnail
-            pixmap = self._thumbnails[thumbnail_id]
-            max_size = min(card.minimumSize().width() - 40, card.minimumSize().height() - 80)
-            scaled_pixmap = self.image_interface.scale_pixmap(pixmap, (max_size, max_size), smooth=False)
-            thumbnail_label.setPixmap(scaled_pixmap)
+            # Use cached thumbnail; the label scales it to its current size.
+            thumbnail_label.set_source_pixmap(self._thumbnails[thumbnail_id])
         else:
             # Show loading placeholder and start async loading
             thumbnail_label.setText("⏳")
@@ -784,15 +890,12 @@ class CopickInfoWidget(QWidget):
                         # Find the thumbnail label and update it
                         thumbnail_label = widget.findChild(QLabel, "thumbnail_label")
                         if thumbnail_label and not thumbnail_label.isHidden():
-                            widget_size = thumbnail_label.size()
-                            max_size = min(widget_size.width() - 20, widget_size.height() - 20)
-                            if max_size > 0:
-                                scaled_pixmap = self.image_interface.scale_pixmap(
-                                    pixmap,
-                                    (max_size, max_size),
-                                    smooth=False,
-                                )
-                                thumbnail_label.setPixmap(scaled_pixmap)
+                            # _ScaledThumbnailLabel rescales to its current size;
+                            # fall back to a plain setPixmap for any other label.
+                            if hasattr(thumbnail_label, "set_source_pixmap"):
+                                thumbnail_label.set_source_pixmap(pixmap)
+                            else:
+                                thumbnail_label.setPixmap(pixmap)
                     else:
                         del self._thumbnail_widgets[thumbnail_id]
                 except RuntimeError:
@@ -913,6 +1016,7 @@ class CopickInfoWidget(QWidget):
 
         # Name label
         name_label = QLabel(name)
+        name_label.setWordWrap(True)
         colors = self.theme_interface.get_theme_colors()
         name_label.setStyleSheet(f"color: {colors['text_primary']}; font-weight: bold; font-size: 11px;")
         info_layout.addWidget(name_label)
@@ -920,6 +1024,7 @@ class CopickInfoWidget(QWidget):
         # Details label
         if details:
             details_label = QLabel(details)
+            details_label.setWordWrap(True)
             colors = self.theme_interface.get_theme_colors()
             details_label.setStyleSheet(f"color: {colors['text_muted']}; font-size: 9px;")
             info_layout.addWidget(details_label)

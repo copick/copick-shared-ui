@@ -79,7 +79,9 @@ def _create_combobox_widget(
     """Create a QComboBox for parameters with known value sets."""
     widget = QComboBox(parent)
     widget.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
-    widget.setMinimumContentsLength(12)
+    # Keep the collapsed combo narrow so it does not pin a wide form minimum;
+    # the Expanding policy below lets it grow to show full values when there is room.
+    widget.setMinimumContentsLength(6)
     sp = widget.sizePolicy()
     sp.setHorizontalPolicy(QSizePolicy.Expanding)
     widget.setSizePolicy(sp)
@@ -216,8 +218,10 @@ def _create_path_widget(
     if param.default is not None and param.default != "":
         line_edit.setText(str(param.default))
 
-    browse_btn = QPushButton("Browse...")
-    browse_btn.setFixedWidth(80)
+    browse_btn = QPushButton("Browse")
+    # Cap growth (keeps the path row compact) without forcing a width that could
+    # clip the label; the button shows at its natural ~75px sizeHint.
+    browse_btn.setMaximumWidth(80)
 
     layout.addWidget(line_edit)
     layout.addWidget(browse_btn)
