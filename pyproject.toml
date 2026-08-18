@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "copick-shared-ui"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 classifiers = [
     "Development Status :: 2 - Pre-Alpha",
     "Intended Audience :: Developers",
@@ -13,21 +13,20 @@ classifiers = [
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3 :: Only",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Programming Language :: Python :: Implementation :: CPython",
-    "Programming Language :: Python :: Implementation :: PyPy",
     "Topic :: Scientific/Engineering :: Image Processing",
 ]
 dynamic = ["version"]
 dependencies = [
     "qtpy",
     "pydantic>=2",
-    "copick[all]>=1.25.3",
-    "zarr<3",
-    "numpy>=1.21.0",
+    "copick>=2.0.0a1,<3",
+    "zarr>=3.1.6,<4",
+    "numpy>=2.0.2",
     "superqt"
 ]
 authors = [
@@ -69,7 +68,7 @@ testing = [
 addopts = "--strict-config --strict-markers"
 testpaths = ["tests"]
 markers = [
-    "migration_expected_failure: behavior intentionally fixed by the next migration stack layer",
+    "integration: validation requiring a separately published artifact or live service",
 ]
 
 [tool.hatch.version]

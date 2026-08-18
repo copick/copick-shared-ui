@@ -213,9 +213,10 @@ class AbstractThumbnailWorker(ABC):
                 return cached_pixmap, None
 
         # Generate thumbnail array
-        thumbnail_array = self._generate_thumbnail_array(tomogram)
-        if thumbnail_array is None:
-            return None, "Failed to generate thumbnail array"
+        try:
+            thumbnail_array = self._generate_thumbnail_array(tomogram)
+        except Exception as error:
+            return None, str(error)
 
         # Convert to pixmap
         pixmap = self._array_to_pixmap(thumbnail_array)
@@ -241,62 +242,36 @@ class AbstractThumbnailWorker(ABC):
         """Convert numpy array to platform-specific pixmap."""
         pass
 
-    def _generate_thumbnail_array(self, tomogram: "CopickTomogram") -> Optional[Any]:
+    def _generate_thumbnail_array(self, tomogram: "CopickTomogram") -> Any:
         """Generate thumbnail array from tomogram data."""
-        try:
-            import numpy as np
-            import zarr
+        import numpy as np
 
-            # Load tomogram data - handle multi-scale zarr properly
-            zarr_group = zarr.open(tomogram.zarr(), mode="r")
+        from copick_shared_ui.storage import open_coarsest_tomogram_array
 
-            # Get the data array - handle multi-scale structure
-            if hasattr(zarr_group, "keys") and callable(zarr_group.keys):
-                # Multi-scale zarr group - get the HIGHEST binning level for faster thumbnails
-                scale_levels = sorted([k for k in zarr_group.keys() if k.isdigit()], key=int)  # noqa: SIM118
-                if scale_levels:
-                    # Use the highest scale level (most binned/smallest) for thumbnails
-                    highest_scale = scale_levels[-1]  # Last element is highest number = most binned
-                    tomo_data = zarr_group[highest_scale]
-                else:
-                    # Fallback to first key
-                    first_key = list(zarr_group.keys())[0]
-                    tomo_data = zarr_group[first_key]
-            else:
-                # Direct zarr array
-                tomo_data = zarr_group
+        tomo_data = open_coarsest_tomogram_array(tomogram)
 
-            # Calculate downsampling factor based on data size
-            target_size = 200
-            z_size, y_size, x_size = tomo_data.shape
+        # Calculate downsampling factor based on data size
+        target_size = 200
+        z_size, y_size, x_size = tomo_data.shape
 
-            # Use middle slice for 2D thumbnail
-            mid_z = z_size // 2
+        # Use middle slice for 2D thumbnail
+        mid_z = z_size // 2
 
-            # Calculate downsampling for x and y dimensions
-            downsample_x = max(1, x_size // target_size)
-            downsample_y = max(1, y_size // target_size)
+        # Calculate downsampling for x and y dimensions
+        downsample_x = max(1, x_size // target_size)
+        downsample_y = max(1, y_size // target_size)
 
-            # Extract and downsample middle slice
-            slice_data = tomo_data[mid_z, ::downsample_y, ::downsample_x]
+        # Extract and downsample middle slice before materializing it.
+        slice_data = tomo_data[mid_z, ::downsample_y, ::downsample_x]
+        slice_array = np.array(slice_data)
 
-            # Convert to numpy array
-            slice_array = np.array(slice_data)
+        # Normalize to 0-255 range
+        slice_array = slice_array.astype(np.float32)
+        data_min, data_max = slice_array.min(), slice_array.max()
 
-            # Normalize to 0-255 range
-            slice_array = slice_array.astype(np.float32)
-            data_min, data_max = slice_array.min(), slice_array.max()
+        if data_max > data_min:
+            slice_array = ((slice_array - data_min) / (data_max - data_min) * 255).astype(np.uint8)
+        else:
+            slice_array = np.zeros_like(slice_array, dtype=np.uint8)
 
-            if data_max > data_min:
-                slice_array = ((slice_array - data_min) / (data_max - data_min) * 255).astype(np.uint8)
-            else:
-                slice_array = np.zeros_like(slice_array, dtype=np.uint8)
-
-            return slice_array
-
-        except Exception as e:
-            print(f"Error generating thumbnail array: {e}")
-            import traceback
-
-            traceback.print_exc()
-            return None
+        return slice_array
