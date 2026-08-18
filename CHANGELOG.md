@@ -1,5 +1,28 @@
 # Changelog
 
+## [2.0.0-alpha.1](https://github.com/copick/copick-shared-ui/compare/copick-shared-ui-v0.7.0...copick-shared-ui-v2.0.0-alpha.1) (2026-08-18)
+
+
+### ⚠ BREAKING CHANGES
+
+* adopt metadata-driven Zarr 3 thumbnails ([#55](https://github.com/copick/copick-shared-ui/issues/55))
+
+### ✨ Features
+
+* adopt metadata-driven Zarr 3 thumbnails ([#55](https://github.com/copick/copick-shared-ui/issues/55)) ([a02ecfb](https://github.com/copick/copick-shared-ui/commit/a02ecfbc85012b8008a9426590e732ec10ee7f06))
+
+
+### 🧪 Tests
+
+* establish shared UI migration gate ([#54](https://github.com/copick/copick-shared-ui/issues/54)) ([73b6f74](https://github.com/copick/copick-shared-ui/commit/73b6f7433278189809657d442c49aae3e1415d9a))
+* validate migrated thumbnail backends ([#56](https://github.com/copick/copick-shared-ui/issues/56)) ([72f94a7](https://github.com/copick/copick-shared-ui/commit/72f94a717110e13365d10f8e6e845b180dabeb9e))
+
+
+### ⚙ Continuous Integration
+
+* bootstrap shared UI v2 alpha version ([a73b9c4](https://github.com/copick/copick-shared-ui/commit/a73b9c498d86e00d26ea1b325e489ee73cb038fa))
+* configure shared UI v2 alpha releases ([#57](https://github.com/copick/copick-shared-ui/issues/57)) ([08b9087](https://github.com/copick/copick-shared-ui/commit/08b9087c06bb86295a6cf4ceb30b8d15756422a6))
+
 ## [0.7.0](https://github.com/copick/copick-shared-ui/compare/copick-shared-ui-v0.6.0...copick-shared-ui-v0.7.0) (2026-07-20)
 
 
