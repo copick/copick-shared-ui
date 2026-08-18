@@ -1,0 +1,58 @@
+name: Tests
+
+on:
+  push:
+    branches: [main, v2.0]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
+    env:
+      QT_QPA_PLATFORM: offscreen
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@ae62891fec2bb8e7d6c99fc78c9fec3a63790f8d # v10.0.0
+        with:
+          version: "0.12.4"
+          python-version: ${{ matrix.python-version }}
+
+      - name: Check lockfile
+        run: uv lock --check
+
+      - name: Install test environment
+        run: uv sync --locked --extra testing --extra dev
+
+      - name: Install Qt runtime libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes libegl1 libgl1 libxkbcommon-x11-0
+
+      - name: Verify interpreter
+        run: >
+          uv run --no-sync python -c
+          "import sys; expected = tuple(map(int, '${{ matrix.python-version }}'.split('.')));
+          assert sys.version_info[:2] == expected, sys.version;
+          assert sys.version_info.releaselevel == 'final', sys.version"
+
+      - name: Run tests
+        run: uv run --no-sync pytest -q --cov=copick_shared_ui --cov-branch --cov-report=term-missing
+
+      - name: Compile package
+        run: uv run --no-sync python -m compileall -q src
+
+      - name: Build artifacts
+        run: uv build

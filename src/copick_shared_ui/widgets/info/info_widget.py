@@ -809,8 +809,7 @@ class CopickInfoWidget(QWidget):
             # Show loading placeholder and start async loading
             thumbnail_label.setText("⏳")
             thumbnail_label.setStyleSheet(
-                thumbnail_label.styleSheet()
-                + f"""
+                thumbnail_label.styleSheet() + f"""
                 QLabel {{
                     color: {colors['text_muted']};
                     font-size: 24px;

@@ -49,7 +49,7 @@ Documentation = "https://github.com/copick/copick-shared-ui#README.md"
 
 [project.optional-dependencies]
 dev = [
-    "black>=25.1.0",
+    "black==26.5.1",
     "hatchling>=1.25.0",
     "hatch-vcs>=0.4.0",
     "pre-commit>=4.2.0",
@@ -63,6 +63,13 @@ testing = [
     "pytest-cov",
     "pytest-qt",
     "pyqt6",
+]
+
+[tool.pytest.ini_options]
+addopts = "--strict-config --strict-markers"
+testpaths = ["tests"]
+markers = [
+    "migration_expected_failure: behavior intentionally fixed by the next migration stack layer",
 ]
 
 [tool.hatch.version]
