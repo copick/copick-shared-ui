@@ -1,0 +1,15 @@
+services:
+  openssh-server:
+    image: lscr.io/linuxserver/openssh-server:latest
+    environment:
+      PUID: ${HOST_UID:-1000}
+      PGID: ${HOST_GID:-1000}
+      TZ: Etc/UTC
+      PASSWORD_ACCESS: "true"
+      USER_PASSWORD: password
+      USER_NAME: test.user
+    ports:
+      - "2222:2222"
+    volumes:
+      - ./ssh_mount:/config/test_data
+    restart: unless-stopped
