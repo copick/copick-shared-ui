@@ -41,6 +41,10 @@ class ArrayThumbnailWorker(AbstractThumbnailWorker):
         self._cache = None
         self._cache_key = None
 
+    def _setup_cache(self) -> None:
+        self._cache = None
+        self._cache_key = None
+
     def start(self) -> None:
         pass
 
