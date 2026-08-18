@@ -1,7 +1,6 @@
 """Executable baseline for the storage-sensitive thumbnail behavior."""
 
 import numpy as np
-import pytest
 
 from tests.helpers import ArrayThumbnailWorker, gradient_volume, write_ome_zarr_04
 
@@ -30,8 +29,6 @@ def test_constant_middle_slice_normalizes_to_zero(tmp_path):
     np.testing.assert_array_equal(result, np.zeros((6, 8), dtype=np.uint8))
 
 
-@pytest.mark.migration_expected_failure
-@pytest.mark.xfail(strict=True, reason="phase 1 replaces numeric-key discovery with OME metadata")
 def test_metadata_path_wins_over_numeric_distractor(tmp_path):
     distractor = np.zeros((3, 6, 8), dtype=np.float32)
     declared = gradient_volume()

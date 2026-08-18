@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Any, Callable, Optional, Union
 from copick_shared_ui.workers.unified_workers import (
     QT_AVAILABLE,
     UnifiedDataWorker,
+    UnifiedThumbnailWorker,
     UnifiedWorkerManager,
     create_worker_manager,
     get_platform_info,
@@ -16,9 +17,8 @@ if TYPE_CHECKING:
     from copick.models import CopickRun, CopickTomogram
 
 if is_threading_available():
-    from copick_shared_ui.workers.base import AbstractThumbnailWorker
 
-    class ChimeraXThumbnailWorker(AbstractThumbnailWorker):
+    class ChimeraXThumbnailWorker(UnifiedThumbnailWorker):
         """ChimeraX-specific thumbnail worker with enhanced UI responsiveness optimizations."""
 
         def __init__(

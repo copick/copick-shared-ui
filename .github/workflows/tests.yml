@@ -48,6 +48,14 @@ jobs:
           assert sys.version_info[:2] == expected, sys.version;
           assert sys.version_info.releaselevel == 'final', sys.version"
 
+      - name: Verify Zarr selection
+        run: >
+          uv run --no-sync python -c
+          "import sys, zarr;
+          expected = '3.1.6' if sys.version_info[:2] == (3, 11) else None;
+          assert expected is None or zarr.__version__ == expected, zarr.__version__;
+          print(zarr.__version__)"
+
       - name: Run tests
         run: uv run --no-sync pytest -q --cov=copick_shared_ui --cov-branch --cov-report=term-missing
 
@@ -56,3 +64,6 @@ jobs:
 
       - name: Build artifacts
         run: uv build
+
+      - name: Inspect wheel metadata
+        run: uv run --no-sync python tests/inspect_wheel_metadata.py dist/*.whl

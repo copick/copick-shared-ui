@@ -56,14 +56,30 @@ def gradient_volume(offset: int = 0) -> np.ndarray:
     return np.arange(offset, offset + 3 * 6 * 8, dtype=np.float32).reshape(3, 6, 8)
 
 
-def write_ome_zarr_04(path: Path, datasets: dict[str, np.ndarray], declared_paths: list[str]) -> DummyTomogram:
-    """Build an OME-Zarr 0.4 / Zarr v2 fixture without using production helpers."""
-    group = zarr.open_group(str(path), mode="w")
+def write_ome_zarr(
+    path: Path,
+    datasets: dict[str, np.ndarray],
+    declared_paths: list[str],
+    *,
+    ome_version: str,
+    zarr_format: int,
+    chunks: tuple[int, ...] | None = None,
+    shards: tuple[int, ...] | None = None,
+    chunk_key_encoding: dict[str, Any] | None = None,
+) -> DummyTomogram:
+    """Build a format-specific OME-Zarr fixture without production helpers."""
+    group = zarr.open_group(store=str(path), mode="w", zarr_format=zarr_format)
     for name, values in datasets.items():
-        group.create_dataset(name, data=values, chunks=(1, 3, 4))
-    group.attrs["multiscales"] = [
+        options = {"chunks": chunks or tuple(max(1, size // 2) for size in values.shape)}
+        if shards is not None:
+            options["shards"] = shards
+        if chunk_key_encoding is not None:
+            options["chunk_key_encoding"] = chunk_key_encoding
+        group.create_array(name, data=values, **options)
+
+    multiscales = [
         {
-            "version": "0.4",
+            "version": ome_version,
             "axes": [
                 {"name": "z", "type": "space"},
                 {"name": "y", "type": "space"},
@@ -72,4 +88,23 @@ def write_ome_zarr_04(path: Path, datasets: dict[str, np.ndarray], declared_path
             "datasets": [{"path": dataset_path} for dataset_path in declared_paths],
         },
     ]
+    if ome_version == "0.4":
+        group.attrs["multiscales"] = multiscales
+    elif ome_version == "0.5":
+        group.attrs["ome"] = {"version": "0.5", "multiscales": multiscales}
+    else:
+        raise ValueError(f"Unsupported fixture OME-Zarr version: {ome_version}")
+
     return DummyTomogram(str(path))
+
+
+def write_ome_zarr_04(path: Path, datasets: dict[str, np.ndarray], declared_paths: list[str]) -> DummyTomogram:
+    """Build an OME-Zarr 0.4 / Zarr v2 fixture."""
+    return write_ome_zarr(
+        path,
+        datasets,
+        declared_paths,
+        ome_version="0.4",
+        zarr_format=2,
+        chunks=(1, 3, 4),
+    )
