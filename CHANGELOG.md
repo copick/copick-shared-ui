@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.7.1](https://github.com/copick/copick-shared-ui/compare/copick-shared-ui-v0.7.0...copick-shared-ui-v0.7.1) (2026-10-02)
+
+
+### 🐞 Bug Fixes
+
+* bump actions/setup-python from 6 to 7 ([#33](https://github.com/copick/copick-shared-ui/issues/33)) ([5f9e148](https://github.com/copick/copick-shared-ui/commit/5f9e148ae98b39ca17e13498b0b8d7e1a54776a7))
+* bump chanzuckerberg/github-actions from 6.30.1 to 6.41.2 ([#68](https://github.com/copick/copick-shared-ui/issues/68)) ([fc9c40c](https://github.com/copick/copick-shared-ui/commit/fc9c40c9d2f4b306e4943383a466e24f8582f30f))
+* bump pre-commit from 4.6.0 to 4.6.2 ([#45](https://github.com/copick/copick-shared-ui/issues/45)) ([0edd2a5](https://github.com/copick/copick-shared-ui/commit/0edd2a5988f808cf26b6229f4d0c5aee96483e88))
+* bump pydantic from 2.13.4 to 2.13.5 ([#64](https://github.com/copick/copick-shared-ui/issues/64)) ([88ef053](https://github.com/copick/copick-shared-ui/commit/88ef053eca9fd2eca2427b58ec4e29826937f27d))
+* bump ruff from 0.15.21 to 0.16.5 ([#65](https://github.com/copick/copick-shared-ui/issues/65)) ([2119180](https://github.com/copick/copick-shared-ui/commit/2119180e4799cf3bb0e2a5789d03dad7f6bb2e1a))
+* bump tox from 4.56.4 to 4.61.1 ([#63](https://github.com/copick/copick-shared-ui/issues/63)) ([a779c7e](https://github.com/copick/copick-shared-ui/commit/a779c7e14ba66b366b9122ef87eeb3b35175f1eb))
+* bump tox-uv from 1.35.2 to 1.36.0 ([#37](https://github.com/copick/copick-shared-ui/issues/37)) ([0c1e592](https://github.com/copick/copick-shared-ui/commit/0c1e592ba105dc81ca590b4481c46e95df171b45))
+
 ## [0.7.0](https://github.com/copick/copick-shared-ui/compare/copick-shared-ui-v0.6.0...copick-shared-ui-v0.7.0) (2026-07-20)
 
 
