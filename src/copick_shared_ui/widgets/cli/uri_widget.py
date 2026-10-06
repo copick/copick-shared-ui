@@ -45,8 +45,9 @@ from copick_shared_ui.core.models import AbstractCLIContextInterface
 # URI format templates per object type
 _URI_FIELDS = {
     "picks": ["object_name", "user_id", "session_id"],
+    "filaments": ["object_name", "user_id", "session_id"],
     "mesh": ["object_name", "user_id", "session_id"],
-    "segmentation": ["object_name", "user_id", "session_id", "voxel_spacing"],
+    "segmentation": ["object_name", "user_id", "session_id", "voxel_spacing", "segmentation_type"],
     "tomogram": ["tomo_type", "voxel_spacing"],
     "feature": ["tomo_type", "voxel_spacing", "feature_type"],
     "any": ["object_name", "user_id", "session_id"],
@@ -59,12 +60,22 @@ _FIELD_LABELS = {
     "voxel_spacing": "Voxel Spacing",
     "tomo_type": "Tomogram Type",
     "feature_type": "Feature Type",
+    "segmentation_type": "Segmentation Type",
+}
+
+# Segmentation type -> URI query (copick URIs: name:user/session@vs[?multilabel=true|?instance=true|?panoptic=true])
+_SEGMENTATION_TYPE_QUERIES = {
+    "": "",
+    "binary": "",
+    "multilabel": "multilabel=true",
+    "instance": "instance=true",
+    "panoptic": "panoptic=true",
 }
 
 
 def _assemble_uri(object_type: str, values: dict) -> str:
     """Assemble a URI string from component values."""
-    if object_type in ("picks", "mesh", "any"):
+    if object_type in ("picks", "filaments", "mesh", "any"):
         obj = values.get("object_name", "")
         user = values.get("user_id", "")
         session = values.get("session_id", "")
@@ -87,6 +98,9 @@ def _assemble_uri(object_type: str, values: dict) -> str:
             parts += f":{user}/{session}"
         if vs:
             parts += f"@{vs}"
+        query = _SEGMENTATION_TYPE_QUERIES.get(values.get("segmentation_type", ""), "")
+        if query:
+            parts += f"?{query}"
         return parts
 
     elif object_type == "tomogram":
@@ -120,7 +134,7 @@ def _parse_uri_simple(object_type: str, uri: str) -> dict:
     if not uri:
         return result
 
-    if object_type in ("picks", "mesh", "any"):
+    if object_type in ("picks", "filaments", "mesh", "any"):
         # object_name:user_id/session_id
         if ":" in uri:
             obj, rest = uri.split(":", 1)
@@ -135,9 +149,15 @@ def _parse_uri_simple(object_type: str, uri: str) -> dict:
             result["object_name"] = uri
 
     elif object_type == "segmentation":
-        # name:user_id/session_id@voxel_spacing
+        # name:user_id/session_id@voxel_spacing[?type=true]; strip the query before splitting on "@"
         vs_part = ""
         main = uri
+        if "?" in uri:
+            uri, query = uri.split("?", 1)
+            main = uri
+            for kind, q in _SEGMENTATION_TYPE_QUERIES.items():
+                if q and q in query.split("&"):
+                    result["segmentation_type"] = kind
         if "@" in uri:
             main, vs_part = uri.rsplit("@", 1)
             result["voxel_spacing"] = vs_part
@@ -194,6 +214,8 @@ def _get_field_items(
         return [str(v) for v in context.get_voxel_spacings()]
     elif field_name == "tomo_type":
         return context.get_tomo_types()
+    elif field_name == "segmentation_type":
+        return ["", "multilabel", "instance", "panoptic"]
     return []
 
 

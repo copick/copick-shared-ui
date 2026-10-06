@@ -2,7 +2,8 @@
 Dialog for editing and managing PickableObject types in the copick configuration
 """
 
-from typing import List, Tuple
+import copy
+from typing import List, Optional, Tuple
 
 from copick.models import PickableObject
 from qtpy.QtCore import Qt
@@ -10,6 +11,7 @@ from qtpy.QtGui import QFont
 from qtpy.QtWidgets import (
     QCheckBox,
     QColorDialog,
+    QComboBox,
     QDialog,
     QDialogButtonBox,
     QDoubleSpinBox,
@@ -29,7 +31,10 @@ from qtpy.QtWidgets import (
     QWidget,
 )
 
+from copick_shared_ui.core.types import FILAMENT_METADATA_KEY, FILAMENT_METADATA_NAMESPACE, filament_spec_of
 from copick_shared_ui.util.validation import validate_copick_name
+
+POLARITY_CHOICES = [("Not stated", None), ("Polar", True), ("Apolar", False)]
 
 
 class ColorButton(QPushButton):
@@ -261,6 +266,15 @@ class EditObjectTypesDialog(QDialog):
         )
         left_layout.addRow("Type:", self._is_particle_cb)
 
+        # Is filament checkbox (a filament is a particle annotated with ordered points along its axis)
+        self._is_filament_cb = QCheckBox("Is Filament")
+        self._is_filament_cb.setChecked(False)
+        self._is_filament_cb.setToolTip(
+            "Check for continuous assemblies (e.g. microtubules, actin) annotated with ordered points along their "
+            "axis.\nPicks then carry the filament ID as instance ID. Requires 'Is Particle'.",
+        )
+        left_layout.addRow("", self._is_filament_cb)
+
         # Label (numeric ID)
         self._label_spin = QSpinBox()
         self._label_spin.setRange(1, 9999)
@@ -346,9 +360,39 @@ class EditObjectTypesDialog(QDialog):
 
         right_group.setLayout(right_layout)
 
+        # Filament properties (stored as metadata["copick"]["filament"])
+        self._filament_group = QGroupBox("Filament Properties")
+        filament_layout = QFormLayout()
+
+        self._polarity_combo = QComboBox()
+        for text, _value in POLARITY_CHOICES:
+            self._polarity_combo.addItem(text)
+        self._polarity_combo.setToolTip("Whether the structure has a polarity (microtubules and actin are polar)")
+        filament_layout.addRow("Polarity:", self._polarity_combo)
+
+        self._rise_spin = QDoubleSpinBox()
+        self._rise_spin.setRange(0.0, 10000.0)
+        self._rise_spin.setDecimals(2)
+        self._rise_spin.setValue(0.0)
+        self._rise_spin.setSpecialValueText("Not set")
+        self._rise_spin.setToolTip("Axial rise per subunit (descriptive only; never used as a sampling distance)")
+        filament_layout.addRow("Helical rise (Å):", self._rise_spin)
+
+        self._twist_spin = QDoubleSpinBox()
+        self._twist_spin.setRange(-361.0, 360.0)
+        self._twist_spin.setDecimals(2)
+        self._twist_spin.setValue(-361.0)
+        self._twist_spin.setSpecialValueText("Not set")
+        self._twist_spin.setToolTip("Twist per subunit (descriptive only)")
+        filament_layout.addRow("Helical twist (°):", self._twist_spin)
+
+        self._filament_group.setLayout(filament_layout)
+        self._filament_group.setEnabled(False)
+
         # Add groups to grid
         grid_layout.addWidget(left_group, 0, 0)
         grid_layout.addWidget(right_group, 0, 1)
+        grid_layout.addWidget(self._filament_group, 1, 0, 1, 2)
 
         # Form action buttons
         form_buttons_layout = QHBoxLayout()
@@ -393,6 +437,18 @@ class EditObjectTypesDialog(QDialog):
         self._name_edit.textChanged.connect(self._validate_form)
         self._label_spin.valueChanged.connect(self._validate_form)
 
+        # A filament must be a particle
+        self._is_particle_cb.toggled.connect(self._on_particle_toggled)
+        self._is_filament_cb.toggled.connect(self._on_filament_toggled)
+
+    def _on_particle_toggled(self, checked: bool):
+        self._is_filament_cb.setEnabled(checked)
+        if not checked:
+            self._is_filament_cb.setChecked(False)
+
+    def _on_filament_toggled(self, checked: bool):
+        self._filament_group.setEnabled(checked)
+
     def _populate_objects_table(self):
         """Populate the objects table"""
         self._objects_table.setRowCount(len(self._existing_objects))
@@ -404,7 +460,10 @@ class EditObjectTypesDialog(QDialog):
             self._objects_table.setItem(row, 0, name_item)
 
             # Type
-            type_text = "Particle" if obj.is_particle else "Segmentation"
+            if filament_spec_of(obj) is not None:
+                type_text = "Filament"
+            else:
+                type_text = "Particle" if obj.is_particle else "Segmentation"
             type_item = QTableWidgetItem(type_text)
             type_item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
             self._objects_table.setItem(row, 1, type_item)
@@ -626,6 +685,11 @@ class EditObjectTypesDialog(QDialog):
         self._identifier_edit.clear()
         self._threshold_spin.setValue(self._threshold_spin.minimum())
         self._radius_spin.setValue(self._radius_spin.minimum())
+        self._is_filament_cb.setEnabled(True)
+        self._is_filament_cb.setChecked(False)
+        self._polarity_combo.setCurrentIndex(0)
+        self._rise_spin.setValue(self._rise_spin.minimum())
+        self._twist_spin.setValue(self._twist_spin.minimum())
 
         # Hide validation messages
         self._name_validation.hide()
@@ -658,6 +722,31 @@ class EditObjectTypesDialog(QDialog):
         else:
             self._radius_spin.setValue(self._radius_spin.minimum())
 
+        spec = filament_spec_of(obj)
+        self._is_filament_cb.setChecked(spec is not None)
+        spec = spec or {}
+        polarity = spec.get("polar")
+        self._polarity_combo.setCurrentIndex(next(i for i, (_t, v) in enumerate(POLARITY_CHOICES) if v == polarity))
+        rise = spec.get("helical_rise_a")
+        self._rise_spin.setValue(rise if rise is not None else self._rise_spin.minimum())
+        twist = spec.get("helical_twist_deg")
+        self._twist_spin.setValue(twist if twist is not None else self._twist_spin.minimum())
+
+    def _filament_spec_from_form(self, previous: Optional[dict]) -> Optional[dict]:
+        """The filament spec in the form, keeping any extra keys of the previous spec; None if not a filament."""
+        if not (self._is_particle_cb.isChecked() and self._is_filament_cb.isChecked()):
+            return None
+        spec = dict(previous or {})
+        polar = POLARITY_CHOICES[self._polarity_combo.currentIndex()][1]
+        rise = self._rise_spin.value() if self._rise_spin.value() != self._rise_spin.minimum() else None
+        twist = self._twist_spin.value() if self._twist_spin.value() != self._twist_spin.minimum() else None
+        for key, value in (("polar", polar), ("helical_rise_a", rise), ("helical_twist_deg", twist)):
+            if value is None:
+                spec.pop(key, None)
+            else:
+                spec[key] = value
+        return spec
+
     def _populate_initial_data(self):
         """Populate initial data for new object"""
         existing_labels = {obj.label for obj in self._existing_objects if obj.label is not None}
@@ -686,7 +775,10 @@ class EditObjectTypesDialog(QDialog):
         if self._radius_spin.value() != self._radius_spin.minimum():
             radius = self._radius_spin.value()
 
-        return PickableObject(
+        # Start from the edited object so fields the form does not show (metadata, and anything newer copick
+        # versions add) survive the edit.
+        data = copy.deepcopy(self._selected_object.model_dump()) if self._selected_object is not None else {}
+        data.update(
             name=name,
             is_particle=is_particle,
             label=label,
@@ -697,6 +789,25 @@ class EditObjectTypesDialog(QDialog):
             map_threshold=threshold,
             radius=radius,
         )
+
+        # Filament declaration: metadata["copick"]["filament"]
+        previous = filament_spec_of(self._selected_object) if self._selected_object is not None else None
+        spec = self._filament_spec_from_form(previous)
+        metadata = dict(data.get("metadata") or {})
+        namespace = metadata.get(FILAMENT_METADATA_NAMESPACE)
+        namespace = dict(namespace) if isinstance(namespace, dict) else {}
+        if spec is None:
+            namespace.pop(FILAMENT_METADATA_KEY, None)
+        else:
+            namespace[FILAMENT_METADATA_KEY] = spec
+        if namespace:
+            metadata[FILAMENT_METADATA_NAMESPACE] = namespace
+        else:
+            metadata.pop(FILAMENT_METADATA_NAMESPACE, None)
+        if metadata or "metadata" in data:
+            data["metadata"] = metadata
+
+        return PickableObject(**data)
 
     def _validate_form(self):
         """Validate the current form state"""
@@ -794,6 +905,7 @@ class EditObjectTypesDialog(QDialog):
                 or current.identifier != original.identifier
                 or current.map_threshold != original.map_threshold
                 or current.radius != original.radius
+                or getattr(current, "metadata", None) != getattr(original, "metadata", None)
             ):
                 return True
 

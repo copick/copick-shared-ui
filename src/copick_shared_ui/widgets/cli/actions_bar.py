@@ -148,17 +148,6 @@ class ActionsBar(QWidget):
     @staticmethod
     def _get_object_type(copick_obj: Any) -> Optional[str]:
         """Map a copick model object to its URI object type string."""
-        if copick_obj is None:
-            return None
-        cls_name = type(copick_obj).__name__
-        if "Picks" in cls_name:
-            return "picks"
-        elif "Mesh" in cls_name:
-            return "mesh"
-        elif "Segmentation" in cls_name:
-            return "segmentation"
-        elif "Tomogram" in cls_name:
-            return "tomogram"
-        elif "Features" in cls_name:
-            return "feature"
-        return None
+        from copick_shared_ui.core.types import uri_object_type
+
+        return uri_object_type(copick_obj)
