@@ -48,6 +48,18 @@ class AbstractDataWorker(ABC):
                 data = tomograms
             elif self.data_type == "picks":
                 data = list(self.run.picks)
+                for picks in data:  # read the point files here, not on the UI thread
+                    if self._cancelled:
+                        return None, "Cancelled"
+                    _ = picks.points
+            elif self.data_type == "filaments":
+                if not hasattr(self.run, "filaments"):  # copick without the Filaments entity
+                    return [], None
+                data = list(self.run.filaments)
+                for filaments in data:  # read the filament files here, not on the UI thread
+                    if self._cancelled:
+                        return None, "Cancelled"
+                    _ = filaments.filaments
             elif self.data_type == "meshes":
                 data = list(self.run.meshes)
             elif self.data_type == "segmentations":

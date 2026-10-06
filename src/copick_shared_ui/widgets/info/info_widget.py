@@ -22,6 +22,12 @@ from copick_shared_ui.core.models import (
     AbstractThemeInterface,
     AbstractWorkerInterface,
 )
+from copick_shared_ui.core.types import (
+    SEGMENTATION_TYPE_LABELS,
+    is_filament_object,
+    segmentation_type_of,
+    supports_filaments,
+)
 
 if TYPE_CHECKING:
     from copick.models import CopickRun, CopickTomogram, CopickVoxelSpacing
@@ -302,6 +308,8 @@ class CopickInfoWidget(QWidget):
             return
 
         data_types = ["voxel_spacings", "tomograms", "picks", "meshes", "segmentations"]
+        if supports_filaments():
+            data_types.insert(3, "filaments")
 
         for data_type in data_types:
             if data_type not in self._loading_states:
@@ -453,6 +461,8 @@ class CopickInfoWidget(QWidget):
         picks_status = self._loading_states.get("picks", "not_started")
         meshes_status = self._loading_states.get("meshes", "not_started")
         seg_status = self._loading_states.get("segmentations", "not_started")
+        with_filaments = supports_filaments()
+        filaments_status = self._loading_states.get("filaments", "not_started") if with_filaments else "loaded"
 
         # Create section frame
         section_frame = self._create_section_frame()
@@ -477,10 +487,12 @@ class CopickInfoWidget(QWidget):
         picks_count = len(self._loaded_data.get("picks", []))
         meshes_count = len(self._loaded_data.get("meshes", []))
         seg_count = len(self._loaded_data.get("segmentations", []))
-        total_count = picks_count + meshes_count + seg_count
+        filaments_count = len(self._loaded_data.get("filaments", []))
+        total_count = picks_count + meshes_count + seg_count + filaments_count
 
-        all_loaded = all(status == "loaded" for status in [picks_status, meshes_status, seg_status])
-        any_loading = any(status == "loading" for status in [picks_status, meshes_status, seg_status])
+        statuses = [picks_status, meshes_status, seg_status, filaments_status]
+        all_loaded = all(status == "loaded" for status in statuses)
+        any_loading = any(status == "loading" for status in statuses)
 
         if any_loading:
             status_label = self._create_status_label("loading", "")
@@ -507,6 +519,10 @@ class CopickInfoWidget(QWidget):
 
         # Add each annotation type
         subsections_layout.addWidget(self._create_annotation_subsection("picks", "📍 Picks", picks_status))
+        if with_filaments:
+            subsections_layout.addWidget(
+                self._create_annotation_subsection("filaments", "〰 Filaments", filaments_status),
+            )
         subsections_layout.addWidget(self._create_annotation_subsection("meshes", "🕸 Meshes", meshes_status))
         subsections_layout.addWidget(self._create_annotation_subsection("segmentations", "🖌 Segmentations", seg_status))
 
@@ -998,6 +1014,16 @@ class CopickInfoWidget(QWidget):
             name = f"📍 {item.pickable_object_name}"
             point_count = len(item.points) if hasattr(item, "points") else "N/A"
             details = f"User: {item.user_id} | Session: {item.session_id} | Points: {point_count}"
+            n_filaments = self._filament_count_of_picks(item)
+            if n_filaments is not None:
+                details += f" | Filaments: {n_filaments}"
+        elif data_type == "filaments":
+            name = f"〰 {item.pickable_object_name}"
+            filaments = item.filaments
+            kinds = sorted({f.curve.kind for f in filaments if getattr(f, "curve", None) is not None})
+            details = f"User: {item.user_id} | Session: {item.session_id} | Filaments: {len(filaments)}"
+            if kinds:
+                details += f" | Curves: {', '.join(kinds)}"
         elif data_type == "meshes":
             name = f"🕸 {item.pickable_object_name}"
             details = f"User: {item.user_id} | Session: {item.session_id}"
@@ -1008,7 +1034,11 @@ class CopickInfoWidget(QWidget):
                 item.pickable_object_name if hasattr(item, "pickable_object_name") else "Unknown",
             )
             name = f"🖌 {seg_name}"
-            details = f"User: {item.user_id} | Session: {item.session_id}"
+            seg_type = SEGMENTATION_TYPE_LABELS[segmentation_type_of(item)]
+            details = (
+                f"User: {item.user_id} | Session: {item.session_id} | Type: {seg_type} | "
+                f"Voxel: {item.voxel_size:g} Å"
+            )
         else:
             name = str(item)
             details = ""
@@ -1049,6 +1079,16 @@ class CopickInfoWidget(QWidget):
         """,
         )
         return widget
+
+    def _filament_count_of_picks(self, picks: Any) -> Optional[int]:
+        """Number of filaments (distinct instance IDs > 0) in picks of a filament object, else None."""
+        try:
+            obj = picks.run.root.get_object(picks.pickable_object_name)
+            if obj is None or not is_filament_object(obj):
+                return None
+            return len({int(p.instance_id) for p in picks.points if getattr(p, "instance_id", 0)})
+        except Exception:
+            return None
 
     def _create_portal_link_button(self, item: Any) -> Optional[QPushButton]:
         """Create a CryoET Data Portal link button for an item if applicable."""

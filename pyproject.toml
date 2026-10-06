@@ -24,7 +24,7 @@ dynamic = ["version"]
 dependencies = [
     "qtpy",
     "pydantic>=2",
-    "copick>=2.0.0a1,<3",
+    "copick>=2.0.0a2,<3",
     "zarr>=3.1.6,<4",
     "numpy>=2.0.2",
     "superqt"

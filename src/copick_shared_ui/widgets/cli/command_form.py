@@ -514,18 +514,9 @@ class ClickCommandForm(QWidget):
     @staticmethod
     def _get_copick_object_type(copick_obj: Any) -> Optional[str]:
         """Map a copick model object to its URI object type string."""
-        cls_name = type(copick_obj).__name__
-        if "Picks" in cls_name:
-            return "picks"
-        elif "Mesh" in cls_name:
-            return "mesh"
-        elif "Segmentation" in cls_name:
-            return "segmentation"
-        elif "Tomogram" in cls_name:
-            return "tomogram"
-        elif "Features" in cls_name:
-            return "feature"
-        return None
+        from copick_shared_ui.core.types import uri_object_type
+
+        return uri_object_type(copick_obj)
 
     def prefill_uri(self, uri: str, object_type: str = "") -> None:
         """Pre-fill a URI widget matching the given object type.
