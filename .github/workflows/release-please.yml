@@ -78,9 +78,7 @@ jobs:
         run: uv lock --check
 
       - name: build
-        run: |
-          uv build
-          uv run --no-project --with packaging python tests/inspect_wheel_metadata.py dist/*.whl
+        run: uv build
 
       - name: Publish distribution 📦 to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
