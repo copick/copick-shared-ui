@@ -15,6 +15,7 @@
   "packages": {
     ".": {
       "package-name": "copick-shared-ui",
+      "extra-files": [{ "type": "generic", "path": "src/copick_shared_ui/__init__.py" }],
       "tag-prefix": "v",
       "release-type": "python",
       "versioning": "prerelease",
