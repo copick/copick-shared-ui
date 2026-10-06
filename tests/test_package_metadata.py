@@ -11,7 +11,7 @@ def test_alpha_runtime_contract_is_explicit():
 
     assert project["requires-python"] == ">=3.11"
     assert set(project["dependencies"]) >= {
-        "copick>=2.0.0a1,<3",
+        "copick>=2.0.0a3,<3",
         "numpy>=2.0.2",
         "zarr>=3.1.6,<4",
     }

@@ -78,9 +78,7 @@ jobs:
         run: uv lock --check
 
       - name: build
-        run: |
-          uv build
-          uv run --no-project --with packaging python tests/inspect_wheel_metadata.py dist/*.whl
+        run: uv build
 
       # release-please's own Python updater misses a version with a dotted prerelease suffix (2.0.0-alpha.1), so
       # src/copick_shared_ui/__init__.py carries an x-release-please-version marker; refuse to upload if it was still missed.

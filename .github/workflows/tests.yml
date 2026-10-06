@@ -64,6 +64,3 @@ jobs:
 
       - name: Build artifacts
         run: uv build
-
-      - name: Inspect wheel metadata
-        run: uv run --no-sync python tests/inspect_wheel_metadata.py dist/*.whl

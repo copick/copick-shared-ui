@@ -40,7 +40,7 @@ UI_EXCLUDED_COMMANDS = {"browse", "info", "config", "stats", "deposit"}
 class URIParamMeta:
     """Metadata for a URI parameter, extracted from CopickURI type."""
 
-    object_type: str  # "picks", "mesh", "segmentation", "tomogram", "feature", "any"
+    object_type: str  # "picks", "filaments", "mesh", "segmentation", "tomogram", "feature", "any"
     role: str  # "input", "output", "reference"
 
 
