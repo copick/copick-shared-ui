@@ -13,7 +13,7 @@ def inspect_wheel(path: Path) -> None:
 
     requirements = metadata.get_all("Requires-Dist", [])
     assert metadata["Requires-Python"] == ">=3.11"
-    assert any(requirement.startswith("copick<3,>=2.0.0a1") for requirement in requirements), requirements
+    assert any(requirement.startswith("copick<3,>=2.0.0a3") for requirement in requirements), requirements
     assert any(requirement.startswith("numpy>=2.0.2") for requirement in requirements), requirements
     assert any(requirement.startswith("zarr<4,>=3.1.6") for requirement in requirements), requirements
     assert all("copick[all]" not in requirement for requirement in requirements), requirements
