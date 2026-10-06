@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-alpha.3](https://github.com/copick/copick-shared-ui/compare/copick-shared-ui-v2.0.0-alpha.2...copick-shared-ui-v2.0.0-alpha.3) (2026-10-06)
+
+
+### ✨ Features
+
+* filaments, instance segmentations and compact instance browsing (v2.0) ([#74](https://github.com/copick/copick-shared-ui/issues/74)) ([763861b](https://github.com/copick/copick-shared-ui/commit/763861bc00651eb5db6a68d4605df0671ec76317))
+
 ## [2.0.0-alpha.2](https://github.com/copick/copick-shared-ui/compare/copick-shared-ui-v2.0.0-alpha.1...copick-shared-ui-v2.0.0-alpha.2) (2026-10-06)
 
 
