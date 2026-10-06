@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-alpha.2](https://github.com/copick/copick-shared-ui/compare/copick-shared-ui-v2.0.0-alpha.1...copick-shared-ui-v2.0.0-alpha.2) (2026-10-06)
+
+
+### 🐞 Bug Fixes
+
+* bump the version of prereleases in src/copick_shared_ui/__init__.py ([#75](https://github.com/copick/copick-shared-ui/issues/75)) ([7130602](https://github.com/copick/copick-shared-ui/commit/71306027350d35b5711688aa0f23a9d0f8ab8692))
+
 ## [2.0.0-alpha.1](https://github.com/copick/copick-shared-ui/compare/copick-shared-ui-v0.7.0...copick-shared-ui-v2.0.0-alpha.1) (2026-08-18)
 
 
