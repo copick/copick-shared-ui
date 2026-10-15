@@ -7,7 +7,6 @@ from typing import List, Optional, Tuple
 
 from copick.models import PickableObject
 from qtpy.QtCore import Qt
-from qtpy.QtGui import QFont
 from qtpy.QtWidgets import (
     QCheckBox,
     QColorDialog,
@@ -15,7 +14,6 @@ from qtpy.QtWidgets import (
     QDialog,
     QDialogButtonBox,
     QDoubleSpinBox,
-    QFormLayout,
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
@@ -25,6 +23,7 @@ from qtpy.QtWidgets import (
     QMessageBox,
     QPushButton,
     QSpinBox,
+    QSplitter,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -97,8 +96,8 @@ class EditObjectTypesDialog(QDialog):
 
         self.setModal(True)
         self.setWindowTitle("Edit Object Types")
-        self.setMinimumSize(800, 600)
-        self.resize(900, 700)
+        self.setMinimumSize(760, 560)
+        self.resize(900, 720)
 
         self._setup_ui()
         self._connect_signals()
@@ -112,31 +111,26 @@ class EditObjectTypesDialog(QDialog):
         main_layout.setContentsMargins(12, 12, 12, 12)
         main_layout.setSpacing(12)
 
-        # Header
-        header = QLabel("✏️ Edit Object Types")
-        header_font = QFont()
-        header_font.setBold(True)
-        header_font.setPointSize(14)
-        header.setFont(header_font)
-        main_layout.addWidget(header)
-
-        # Info label
+        # Info label (the window title names the dialog)
         info_label = QLabel("Select an object type from the table to edit, or create a new one using the form below.")
         info_label.setStyleSheet("color: gray; font-style: italic;")
         main_layout.addWidget(info_label)
 
-        # Objects table with management buttons
+        # Objects table above the form; the table takes the extra height, the form keeps its own
         self._create_objects_table()
-        main_layout.addWidget(self._objects_group)
-
-        # Form for editing/adding
         self._create_object_form()
-        main_layout.addWidget(self._form_group)
+        splitter = QSplitter(Qt.Vertical)
+        splitter.addWidget(self._objects_group)
+        splitter.addWidget(self._form_group)
+        splitter.setStretchFactor(0, 1)
+        splitter.setStretchFactor(1, 0)
+        splitter.setChildrenCollapsible(False)
+        main_layout.addWidget(splitter, 1)
 
         # Dialog buttons
         self._button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         self._ok_button = self._button_box.button(QDialogButtonBox.Ok)
-        self._ok_button.setText("Save & Close")
+        self._ok_button.setText("Save && Close")
         self._ok_button.setEnabled(False)  # Initially disabled until changes are made
         self._ok_button.setStyleSheet(
             """
@@ -199,7 +193,7 @@ class EditObjectTypesDialog(QDialog):
         self._objects_table.setSelectionBehavior(QTableWidget.SelectRows)
         self._objects_table.setSelectionMode(QTableWidget.SingleSelection)
         self._objects_table.setEditTriggers(QTableWidget.NoEditTriggers)
-        self._objects_table.setMaximumHeight(200)
+        self._objects_table.setMinimumHeight(150)
 
         # Configure column widths
         header = self._objects_table.horizontalHeader()
@@ -215,188 +209,16 @@ class EditObjectTypesDialog(QDialog):
         self._objects_group.setLayout(group_layout)
 
     def _create_object_form(self):
-        """Create the object form for editing/adding"""
+        """Create the object form for editing/adding: one grid of three label/field pairs per row."""
         self._form_group = QGroupBox("Object Configuration")
         main_layout = QVBoxLayout()
 
-        # Form status label
+        # Status on the left, form actions on the right
+        actions = QHBoxLayout()
         self._form_status = QLabel("Ready to add new object")
-        self._form_status.setStyleSheet("font-weight: bold; color: #4A90E2; padding: 5px;")
-        main_layout.addWidget(self._form_status)
-
-        # Grid layout for two columns
-        grid_layout = QGridLayout()
-        grid_layout.setColumnStretch(0, 1)
-        grid_layout.setColumnStretch(1, 1)
-        grid_layout.setHorizontalSpacing(20)
-
-        # Left column - Basic properties
-        left_group = QGroupBox("Basic Properties")
-        left_layout = QFormLayout()
-
-        # Object name
-        self._name_edit = QLineEdit()
-        self._name_edit.setPlaceholderText("Enter object name (e.g., 'ribosome', 'membrane')")
-        self._name_edit.setToolTip("Unique name for this pickable object type")
-        left_layout.addRow("Name*:", self._name_edit)
-
-        # Name validation label
-        self._name_validation = QLabel()
-        self._name_validation.setStyleSheet(
-            """
-            QLabel {
-                color: #d32f2f;
-                font-size: 10px;
-                padding: 2px;
-                background-color: rgba(211, 47, 47, 0.1);
-                border: 1px solid rgba(211, 47, 47, 0.3);
-                border-radius: 3px;
-            }
-        """,
-        )
-        self._name_validation.setWordWrap(True)
-        self._name_validation.hide()
-        left_layout.addRow("", self._name_validation)
-
-        # Is particle checkbox
-        self._is_particle_cb = QCheckBox("Is Particle")
-        self._is_particle_cb.setChecked(True)
-        self._is_particle_cb.setToolTip(
-            "Check if this object should be represented by points, uncheck for segmentation masks",
-        )
-        left_layout.addRow("Type:", self._is_particle_cb)
-
-        # Is filament checkbox (a filament is a particle annotated with ordered points along its axis)
-        self._is_filament_cb = QCheckBox("Is Filament")
-        self._is_filament_cb.setChecked(False)
-        self._is_filament_cb.setToolTip(
-            "Check for continuous assemblies (e.g. microtubules, actin) annotated with ordered points along their "
-            "axis.\nPicks then carry the filament ID as instance ID. Requires 'Is Particle'.",
-        )
-        left_layout.addRow("", self._is_filament_cb)
-
-        # Label (numeric ID)
-        self._label_spin = QSpinBox()
-        self._label_spin.setRange(1, 9999)
-        self._label_spin.setValue(1)
-        self._label_spin.setToolTip("Unique numeric identifier for this object type")
-        left_layout.addRow("Label*:", self._label_spin)
-
-        # Label validation
-        self._label_validation = QLabel()
-        self._label_validation.setStyleSheet(
-            """
-            QLabel {
-                color: #d32f2f;
-                font-size: 10px;
-                padding: 2px;
-                background-color: rgba(211, 47, 47, 0.1);
-                border: 1px solid rgba(211, 47, 47, 0.3);
-                border-radius: 3px;
-            }
-        """,
-        )
-        self._label_validation.setWordWrap(True)
-        self._label_validation.hide()
-        left_layout.addRow("", self._label_validation)
-
-        # Color selection
-        color_widget = QWidget()
-        color_layout = QHBoxLayout()
-        color_layout.setContentsMargins(0, 0, 0, 0)
-        color_layout.setSpacing(5)
-
-        self._color_button = ColorButton()
-        color_layout.addWidget(self._color_button)
-        color_layout.addWidget(QLabel("Click to change color"))
-        color_layout.addStretch()
-        color_widget.setLayout(color_layout)
-
-        left_layout.addRow("Color:", color_widget)
-        left_group.setLayout(left_layout)
-
-        # Right column - Optional properties
-        right_group = QGroupBox("Optional Properties")
-        right_layout = QFormLayout()
-
-        # EMDB ID
-        self._emdb_edit = QLineEdit()
-        self._emdb_edit.setPlaceholderText("e.g., EMD-1234")
-        self._emdb_edit.setToolTip("EMDB ID for this object type")
-        right_layout.addRow("EMDB ID:", self._emdb_edit)
-
-        # PDB ID
-        self._pdb_edit = QLineEdit()
-        self._pdb_edit.setPlaceholderText("e.g., 1ABC")
-        self._pdb_edit.setToolTip("PDB ID for this object type")
-        right_layout.addRow("PDB ID:", self._pdb_edit)
-
-        # Identifier (GO/UniProtKB/CHEBI/PDB/UBERON/CL/CDPO)
-        self._identifier_edit = QLineEdit()
-        self._identifier_edit.setPlaceholderText("e.g., GO:0005840, UniProtKB:P0CX35, CHEBI:15986, PDB-1BXN")
-        self._identifier_edit.setToolTip(
-            "Ontology/database identifier for this object type.\n"
-            "Supported namespaces: GO, UniProtKB, CHEBI, PDB (dash separator), UBERON, CL, CDPO.",
-        )
-        right_layout.addRow("Identifier:", self._identifier_edit)
-
-        # Map threshold
-        self._threshold_spin = QDoubleSpinBox()
-        self._threshold_spin.setRange(-9999.0, 9999.0)
-        self._threshold_spin.setDecimals(3)
-        self._threshold_spin.setValue(0.0)
-        self._threshold_spin.setSpecialValueText("None")
-        self._threshold_spin.setToolTip("Threshold for isosurface rendering (set to minimum for None)")
-        right_layout.addRow("Map Threshold:", self._threshold_spin)
-
-        # Radius
-        self._radius_spin = QDoubleSpinBox()
-        self._radius_spin.setRange(0.1, 1000.0)
-        self._radius_spin.setDecimals(1)
-        self._radius_spin.setValue(10.0)
-        self._radius_spin.setSpecialValueText("None")
-        self._radius_spin.setToolTip("Radius for particle display (set to minimum for None)")
-        right_layout.addRow("Radius (Å):", self._radius_spin)
-
-        right_group.setLayout(right_layout)
-
-        # Filament properties (stored as metadata["copick"]["filament"])
-        self._filament_group = QGroupBox("Filament Properties")
-        filament_layout = QFormLayout()
-
-        self._polarity_combo = QComboBox()
-        for text, _value in POLARITY_CHOICES:
-            self._polarity_combo.addItem(text)
-        self._polarity_combo.setToolTip("Whether the structure has a polarity (microtubules and actin are polar)")
-        filament_layout.addRow("Polarity:", self._polarity_combo)
-
-        self._rise_spin = QDoubleSpinBox()
-        self._rise_spin.setRange(0.0, 10000.0)
-        self._rise_spin.setDecimals(2)
-        self._rise_spin.setValue(0.0)
-        self._rise_spin.setSpecialValueText("Not set")
-        self._rise_spin.setToolTip("Axial rise per subunit (descriptive only; never used as a sampling distance)")
-        filament_layout.addRow("Helical rise (Å):", self._rise_spin)
-
-        self._twist_spin = QDoubleSpinBox()
-        self._twist_spin.setRange(-361.0, 360.0)
-        self._twist_spin.setDecimals(2)
-        self._twist_spin.setValue(-361.0)
-        self._twist_spin.setSpecialValueText("Not set")
-        self._twist_spin.setToolTip("Twist per subunit (descriptive only)")
-        filament_layout.addRow("Helical twist (°):", self._twist_spin)
-
-        self._filament_group.setLayout(filament_layout)
-        self._filament_group.setEnabled(False)
-
-        # Add groups to grid
-        grid_layout.addWidget(left_group, 0, 0)
-        grid_layout.addWidget(right_group, 0, 1)
-        grid_layout.addWidget(self._filament_group, 1, 0, 1, 2)
-
-        # Form action buttons
-        form_buttons_layout = QHBoxLayout()
-        form_buttons_layout.setContentsMargins(0, 10, 0, 0)
+        self._form_status.setStyleSheet("font-weight: bold; color: #4A90E2;")
+        actions.addWidget(self._form_status)
+        actions.addStretch()
 
         self._apply_button = QPushButton("✅ Save Object")
         self._apply_button.setEnabled(False)
@@ -406,13 +228,173 @@ class EditObjectTypesDialog(QDialog):
         self._cancel_edit_button.setEnabled(False)
         self._cancel_edit_button.setToolTip("Cancel current editing operation")
 
-        form_buttons_layout.addWidget(self._apply_button)
-        form_buttons_layout.addWidget(self._cancel_edit_button)
-        form_buttons_layout.addStretch()
+        actions.addWidget(self._apply_button)
+        actions.addWidget(self._cancel_edit_button)
+        main_layout.addLayout(actions)
 
-        main_layout.addLayout(grid_layout)
-        main_layout.addLayout(form_buttons_layout)
+        grid = QGridLayout()
+        grid.setHorizontalSpacing(8)
+        grid.setVerticalSpacing(6)
+        for col in (1, 3, 5):
+            grid.setColumnStretch(col, 1)
+
+        def add_field(row: int, pair: int, text: str, widget: QWidget) -> QLabel:
+            label = QLabel(text)
+            label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            if pair:
+                label.setContentsMargins(12, 0, 0, 0)  # separate the label/field pairs
+            grid.addWidget(label, row, 2 * pair)
+            grid.addWidget(widget, row, 2 * pair + 1)
+            return label
+
+        error_style = """
+            QLabel {
+                color: #d32f2f;
+                font-size: 10px;
+                padding: 2px;
+                background-color: rgba(211, 47, 47, 0.1);
+                border: 1px solid rgba(211, 47, 47, 0.3);
+                border-radius: 3px;
+            }
+        """
+
+        # Row 0: name, label, colour
+        self._name_edit = QLineEdit()
+        self._name_edit.setPlaceholderText("e.g. ribosome")
+        self._name_edit.setToolTip("Unique name for this pickable object type")
+        add_field(0, 0, "Name*:", self._name_edit)
+
+        self._label_spin = QSpinBox()
+        self._label_spin.setRange(1, 9999)
+        self._label_spin.setValue(1)
+        self._label_spin.setToolTip("Unique numeric identifier for this object type")
+        add_field(0, 1, "Label*:", self._label_spin)
+
+        color_widget = QWidget()
+        color_layout = QHBoxLayout(color_widget)
+        color_layout.setContentsMargins(0, 0, 0, 0)
+        self._color_button = ColorButton()
+        color_layout.addWidget(self._color_button)
+        color_layout.addStretch()
+        add_field(0, 2, "Color:", color_widget)
+
+        # Row 1: validation messages (hidden unless a field is invalid)
+        self._name_validation = QLabel()
+        self._name_validation.setStyleSheet(error_style)
+        self._name_validation.setWordWrap(True)
+        self._name_validation.hide()
+        self._label_validation = QLabel()
+        self._label_validation.setStyleSheet(error_style)
+        self._label_validation.setWordWrap(True)
+        self._label_validation.hide()
+        validation = QHBoxLayout()
+        validation.setContentsMargins(0, 0, 0, 0)
+        validation.addWidget(self._name_validation, 1)
+        validation.addWidget(self._label_validation, 1)
+        grid.addLayout(validation, 1, 0, 1, 6)
+
+        # Row 2: type, radius, map threshold
+        self._is_particle_cb = QCheckBox("Is Particle")
+        self._is_particle_cb.setChecked(True)
+        self._is_particle_cb.setToolTip(
+            "Check if this object should be represented by points, uncheck for segmentation masks",
+        )
+        # A filament is a particle annotated with ordered points along its axis
+        self._is_filament_cb = QCheckBox("Is Filament")
+        self._is_filament_cb.setChecked(False)
+        self._is_filament_cb.setToolTip(
+            "Check for continuous assemblies (e.g. microtubules, actin) annotated with ordered points along their "
+            "axis.\nPicks then carry the filament ID as instance ID. Requires 'Is Particle'.",
+        )
+        type_widget = QWidget()
+        type_layout = QHBoxLayout(type_widget)
+        type_layout.setContentsMargins(0, 0, 0, 0)
+        type_layout.addWidget(self._is_particle_cb)
+        type_layout.addWidget(self._is_filament_cb)
+        type_layout.addStretch()
+        add_field(2, 0, "Type:", type_widget)
+
+        self._radius_spin = QDoubleSpinBox()
+        self._radius_spin.setRange(0.1, 1000.0)
+        self._radius_spin.setDecimals(1)
+        self._radius_spin.setValue(10.0)
+        self._radius_spin.setSpecialValueText("None")
+        self._radius_spin.setToolTip("Radius for particle display (set to minimum for None)")
+        self._radius_label = add_field(2, 1, "Radius (Å):", self._radius_spin)
+
+        self._threshold_spin = QDoubleSpinBox()
+        self._threshold_spin.setRange(-9999.0, 9999.0)
+        self._threshold_spin.setDecimals(3)
+        self._threshold_spin.setValue(0.0)
+        self._threshold_spin.setSpecialValueText("None")
+        self._threshold_spin.setToolTip("Threshold for isosurface rendering (set to minimum for None)")
+        add_field(2, 2, "Map Threshold:", self._threshold_spin)
+
+        # Row 3: database identifiers
+        self._emdb_edit = QLineEdit()
+        self._emdb_edit.setPlaceholderText("e.g. EMD-1234")
+        self._emdb_edit.setToolTip("EMDB ID for this object type")
+        add_field(3, 0, "EMDB ID:", self._emdb_edit)
+
+        self._pdb_edit = QLineEdit()
+        self._pdb_edit.setPlaceholderText("e.g. 1ABC")
+        self._pdb_edit.setToolTip("PDB ID for this object type")
+        add_field(3, 1, "PDB ID:", self._pdb_edit)
+
+        # Identifier (GO/UniProtKB/CHEBI/PDB/UBERON/CL/CDPO)
+        self._identifier_edit = QLineEdit()
+        self._identifier_edit.setPlaceholderText("e.g. GO:0005840")
+        self._identifier_edit.setToolTip(
+            "Ontology/database identifier for this object type, e.g. GO:0005840, UniProtKB:P0CX35, CHEBI:15986, "
+            "PDB-1BXN.\nSupported namespaces: GO, UniProtKB, CHEBI, PDB (dash separator), UBERON, CL, CDPO.",
+        )
+        add_field(3, 2, "Identifier:", self._identifier_edit)
+
+        # Row 4: filament properties (stored as metadata["copick"]["filament"]; enabled with "Is Filament")
+        self._polarity_combo = QComboBox()
+        for text, _value in POLARITY_CHOICES:
+            self._polarity_combo.addItem(text)
+        self._polarity_combo.setToolTip("Whether the structure has a polarity (microtubules and actin are polar)")
+
+        self._rise_spin = QDoubleSpinBox()
+        self._rise_spin.setRange(0.0, 10000.0)
+        self._rise_spin.setDecimals(2)
+        self._rise_spin.setValue(0.0)
+        self._rise_spin.setSpecialValueText("Not set")
+        self._rise_spin.setToolTip("Axial rise per subunit (descriptive only; never used as a sampling distance)")
+
+        self._twist_spin = QDoubleSpinBox()
+        self._twist_spin.setRange(-361.0, 360.0)
+        self._twist_spin.setDecimals(2)
+        self._twist_spin.setValue(-361.0)
+        self._twist_spin.setSpecialValueText("Not set")
+        self._twist_spin.setToolTip("Twist per subunit (descriptive only)")
+
+        self._filament_widgets = [
+            add_field(4, 0, "Polarity:", self._polarity_combo),
+            add_field(4, 1, "Helical rise (Å):", self._rise_spin),
+            add_field(4, 2, "Helical twist (°):", self._twist_spin),
+            self._polarity_combo,
+            self._rise_spin,
+            self._twist_spin,
+        ]
+        self._set_filament_enabled(False)
+
+        main_layout.addLayout(grid)
         self._form_group.setLayout(main_layout)
+
+    def _set_filament_enabled(self, enabled: bool) -> None:
+        """Enable the filament properties, and call the radius what it means for a filament: the tube radius."""
+        for widget in self._filament_widgets:
+            widget.setEnabled(enabled)
+        self._radius_label.setText("Tube radius (Å):" if enabled else "Radius (Å):")
+        self._radius_spin.setToolTip(
+            (
+                "Tube radius of the filament (set to minimum for None)"
+                if enabled
+                else "Radius for particle display (set to minimum for None)"
+            ),
+        )
 
     def _connect_signals(self):
         """Connect widget signals"""
@@ -447,7 +429,7 @@ class EditObjectTypesDialog(QDialog):
             self._is_filament_cb.setChecked(False)
 
     def _on_filament_toggled(self, checked: bool):
-        self._filament_group.setEnabled(checked)
+        self._set_filament_enabled(checked)
 
     def _populate_objects_table(self):
         """Populate the objects table"""
@@ -864,7 +846,6 @@ class EditObjectTypesDialog(QDialog):
             )
 
         self._update_button_states()
-        self.adjustSize()
 
     def _is_form_valid(self) -> bool:
         """Check if the current form state is valid"""
