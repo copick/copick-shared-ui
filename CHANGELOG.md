@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.8.1](https://github.com/copick/copick-shared-ui/compare/copick-shared-ui-v0.8.0...copick-shared-ui-v0.8.1) (2026-10-15)
+
+
+### 🐞 Bug Fixes
+
+* bump black from 26.5.1 to 26.10.1 ([#83](https://github.com/copick/copick-shared-ui/issues/83)) ([a9f4eea](https://github.com/copick/copick-shared-ui/commit/a9f4eeacb2e08d98a8559fcc18d409f63eaaffcd))
+* bump chanzuckerberg/github-actions from 6.41.2 to 6.41.3 ([#80](https://github.com/copick/copick-shared-ui/issues/80)) ([dcd11e5](https://github.com/copick/copick-shared-ui/commit/dcd11e5b19c7e5cb2f641c10cb46c70d07ed7f25))
+* bump pydantic from 2.13.5 to 2.14.0 ([#82](https://github.com/copick/copick-shared-ui/issues/82)) ([41c4ba0](https://github.com/copick/copick-shared-ui/commit/41c4ba031eda4c4048c55d5775c6b0205c7f5578))
+* bump ruff from 0.16.10 to 0.17.0 ([#84](https://github.com/copick/copick-shared-ui/issues/84)) ([572ac88](https://github.com/copick/copick-shared-ui/commit/572ac88c6b9ca468b7fb4ba544afb34a14c82e9c))
+* bump tox from 4.64.7 to 4.65.0 ([#81](https://github.com/copick/copick-shared-ui/issues/81)) ([147cf23](https://github.com/copick/copick-shared-ui/commit/147cf235a3b5ef04beedc21e944ceb3cb133d65d))
+* compact Edit Object Types dialog with a larger table ([#78](https://github.com/copick/copick-shared-ui/issues/78)) ([14ba9ce](https://github.com/copick/copick-shared-ui/commit/14ba9ce857929d5b45f41041aaa8ee9e1fe070e8))
+
 ## [0.8.0](https://github.com/copick/copick-shared-ui/compare/copick-shared-ui-v0.7.0...copick-shared-ui-v0.8.0) (2026-10-06)
 
 
