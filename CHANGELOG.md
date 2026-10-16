@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.0.0-alpha.4](https://github.com/copick/copick-shared-ui/compare/copick-shared-ui-v2.0.0-alpha.3...copick-shared-ui-v2.0.0-alpha.4) (2026-10-16)
+
+
+### 🐞 Bug Fixes
+
+* compact Edit Object Types dialog with a larger table (v2.0) ([#79](https://github.com/copick/copick-shared-ui/issues/79)) ([2d56650](https://github.com/copick/copick-shared-ui/commit/2d56650553e9250bd6c6d1e3adb7446e7dca4563))
+
+
+### ⚙ Continuous Integration
+
+* v2.0 release PR titles without the branch scope ([#87](https://github.com/copick/copick-shared-ui/issues/87)) ([a6c4d7c](https://github.com/copick/copick-shared-ui/commit/a6c4d7c4f978123e2567438f5461ce3122538104))
+
 ## [2.0.0-alpha.3](https://github.com/copick/copick-shared-ui/compare/copick-shared-ui-v2.0.0-alpha.2...copick-shared-ui-v2.0.0-alpha.3) (2026-10-06)
 
 
