@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.2](https://github.com/copick/copick-shared-ui/compare/copick-shared-ui-v0.8.1...copick-shared-ui-v0.8.2) (2026-11-03)
+
+
+### 🐞 Bug Fixes
+
+* bump dependencies ([#98](https://github.com/copick/copick-shared-ui/issues/98)) ([0e50a7a](https://github.com/copick/copick-shared-ui/commit/0e50a7a05cc2251f582dc897fc78c0bc516fc1f8))
+
 ## [0.8.1](https://github.com/copick/copick-shared-ui/compare/copick-shared-ui-v0.8.0...copick-shared-ui-v0.8.1) (2026-10-15)
 
 
